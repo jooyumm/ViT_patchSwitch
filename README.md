@@ -1,4 +1,4 @@
-# PatchSwitch — ViT 적응형 방어(P16→P8 폴백) 프로젝트
+# ViT_patchSwitch — ViT 적응형 방어(P16→P8 폴백) 프로젝트
 
 **"P16으로 기본 추론하다가, 공격이 의심되는 이미지는 P8로 통째 재분류하는 적응형 방어"**를
 설계·검증하는 독립 프로젝트다. 원래 [`ViT_tradeoff/`](../ViT_tradeoff/)(패치 크기 vs 강건성
@@ -15,7 +15,7 @@
 ## 디렉토리 구조
 
 ```
-PatchSwitch/
+ViT_patchSwitch/
   src/                      ViT_tradeoff/src/에서 복사 + 범위에 맞게 정리
     models.py                 MODEL_NAMES에서 32 제외(P8/P16만)
     dataset.py                 원본과 동일(전처리 상수는 P16 기준 그대로 유효)
@@ -48,7 +48,7 @@ PatchSwitch/
 
 이전 위치(`ViT_robust/probes/`, 재구성 전) 전체 백업: 아직 이 이동 자체에 대한 백업은 없음
 (재구성 전 probes/ 백업은 `/home/jooyumm/backups/probes_backup_20260903.tar.gz`, CISC-W'26
-투고 끝날 때까지 보관 예정 — 이번 ViT_robust→ViT_tradeoff+PatchSwitch 분리는 아직 별도
+투고 끝날 때까지 보관 예정 — 이번 ViT_robust→ViT_tradeoff+ViT_patchSwitch 분리는 아직 별도
 백업이 없으니 필요하면 말씀해주세요). 참고로 이 프로젝트의 git 히스토리는 사실상 없다 —
 `ViT_robust`가 지금까지 커밋된 적이 없어서(마지막 커밋은 훨씬 이전의 완전히 다른 구조),
 `ViT_tradeoff`로의 이동도 "git mv"가 아니라 그냥 파일 이동으로 처리했다(보존할 히스토리

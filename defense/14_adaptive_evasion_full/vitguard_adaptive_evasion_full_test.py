@@ -44,7 +44,7 @@ from patch_fool_joint_evasive import joint_patch_fool_attack_evasive
 from eval_utils import load_paired_batch, wilson_ci, both_correct_mask
 
 # probes/results/final_validation_n200.npz에서 그대로 가져온 값 (calibration 100개로 도출,
-# PatchSwitch/README.md §6). 여기서 새로 계산 안 함 -- 재현하려면:
+# ViT_patchSwitch/README.md §6). 여기서 새로 계산 안 함 -- 재현하려면:
 #   d = np.load('probes/results/final_validation_n200.npz'); d['threshold'], d['score_clean'].max()
 CALIBRATED_THRESHOLD = 0.5567247867584229
 CLEAN_MAX = 0.6727843284606934

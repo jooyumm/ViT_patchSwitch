@@ -8,7 +8,7 @@ top-4 mass) 존재 자체도 알고, 그 탐지 지표를 clean 범위 안에 �
 배경
 ----
 patch_fool_joint.py의 joint_patch_fool_attack은 P16+P8을 동시에 속이지만 탐지기 존재를
-전혀 모른다 — 그 결과가 PatchSwitch/README.md §7이다(무력화율 18.4%, 그 중 탐지기가 20%는 그래도
+전혀 모른다 — 그 결과가 ViT_patchSwitch/README.md §7이다(무력화율 18.4%, 그 중 탐지기가 20%는 그래도
 flag함). 이 파일은 그 공격에 탐지 회피 제약을 추가해서 "탐지기까지 아는 진짜 최악의
 공격자"를 흉내낸다.
 

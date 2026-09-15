@@ -124,7 +124,7 @@ def main():
     model.eval()
 
     # [샘플링 감사 통과] get_dataloader를 레이어 스윕 루프 밖에서 1회만 호출 -> 모든 레이어가
-    # 동일한 고정 이미지 집합으로 비교됨 (PatchSwitch/README.md "샘플링 감사" 참고)
+    # 동일한 고정 이미지 집합으로 비교됨 (ViT_patchSwitch/README.md "샘플링 감사" 참고)
     loader, _ = get_dataloader(batch_size=args.num_samples, num_samples=args.num_samples, seed=args.seed)
     images, labels = next(iter(loader))
     images, labels = images.to(device), labels.to(device)

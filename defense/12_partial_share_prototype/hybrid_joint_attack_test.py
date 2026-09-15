@@ -46,7 +46,7 @@ from hybrid_partial_share import build_hybrid, HybridBranch, sanity_check_branch
 # 기존 n=200 최종 검증(calibration 100개)에서 확정한 임계값 재사용 — 여기서 새로 안 정함
 CALIBRATED_THRESHOLD = 0.5567
 
-# 대조를 위한 기존 결과 (PatchSwitch/README.md)
+# 대조를 위한 기존 결과 (ViT_patchSwitch/README.md)
 PREV_HETERO_FOOL_BOTH = 0.184    # P16 != P8 (기존 구조, 완전 독립)
 PREV_HOMO_FOOL_BOTH = 0.523      # 같은 patch size(P16), 다른 seed 학습
 

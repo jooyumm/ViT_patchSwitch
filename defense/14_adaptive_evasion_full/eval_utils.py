@@ -5,14 +5,14 @@ probes/eval_utils.py — [탐색적, 롤백 가능] probes/ 전역에서 반복�
 배경 — 이 파일이 왜 생겼는가
 ---------------------------
 probes/ 스크립트들을 하나씩 새로 짜면서 아래 세 가지 패턴이 여러 파일에 흩어져서
-(부분적으로는 복붙으로) 반복됐다. 감사(§ PatchSwitch/README.md "샘플링 감사") 과정에서
+(부분적으로는 복붙으로) 반복됐다. 감사(§ ViT_patchSwitch/README.md "샘플링 감사") 과정에서
 이 중복이 실수를 낼 여지가 있다고 판단해서 한 곳으로 모았다:
 
   1. calibration/evaluation split 강제
      vitguard_final_validation.py에서 처음 만든 패턴. 탐지기 임계값을 정하는 데 쓴 표본으로
      그 탐지기의 recall/FPR을 다시 재면 순환평가로 낙관 편향이 생긴다 — 실제로
      vitguard_p8_rescue_test.py의 초기 n=30 버전이 이 문제로 recall이 부풀려져 있었다
-     (PatchSwitch/README.md §6). calibration_eval_split()은 "임계값은 calibration 슬라이스에서만,
+     (ViT_patchSwitch/README.md §6). calibration_eval_split()은 "임계값은 calibration 슬라이스에서만,
      성능 지표는 evaluation 슬라이스에서만"이라는 규칙을 코드 레벨에서 강제한다.
 
   2. Wilson 이항비율 신뢰구간
@@ -21,7 +21,7 @@ probes/ 스크립트들을 하나씩 새로 짜면서 아래 세 가지 패턴�
   3. paired sampling 헬퍼
      샘플링 감사에서 발견된 실제 문제: vitguard_diversity_test.py(seed=456)와
      vitguard_joint_attack_test.py(seed=123)가 서로 다른 50장으로 "같은 조건" 비교를
-     하고 있었다(재실행으로 수정, PatchSwitch/README.md 참고). load_paired_batch()는 두 실행이
+     하고 있었다(재실행으로 수정, ViT_patchSwitch/README.md 참고). load_paired_batch()는 두 실행이
      같은 (seed, num_samples)를 쓰기만 하면 항상 같은 이미지가 같은 순서로 나온다는 사실을
      명시적인 함수로 만들어서, 다음에 비슷한 비교 실험을 짤 때 seed를 따로따로 고르는 실수를
      구조적으로 줄인다.
@@ -42,7 +42,7 @@ def calibration_eval_split(num_total, frac=0.5):
     임계값/통계는 반드시 calibration 슬라이스에서만 도출하고, recall/FPR 등 성능 지표는
     반드시 evaluation 슬라이스에서만 계산할 것 — 같은 표본으로 임계값도 정하고 성능도
     재면 순환평가가 된다(vitguard_p8_rescue_test.py의 n=30 초기 버전이 실제로 이 문제를
-    겪었음, PatchSwitch/README.md §6 참고).
+    겪었음, ViT_patchSwitch/README.md §6 참고).
     """
     assert 0.0 < frac < 1.0
     n_cal = int(round(num_total * frac))
@@ -96,7 +96,7 @@ def load_paired_batch(seed, num_samples, batch_size=None):
 
     이 규칙이 안 지켜져서 실제로 vitguard_diversity_test.py(seed=456)와
     vitguard_joint_attack_test.py(seed=123)가 서로 다른 50장으로 비교됐던 적이 있다
-    (PatchSwitch/README.md "샘플링 감사" 참고, 재실행으로 수정함). 새 비교 실험을 짤 때 두
+    (ViT_patchSwitch/README.md "샘플링 감사" 참고, 재실행으로 수정함). 새 비교 실험을 짤 때 두
     조건에 넘기는 seed를 이 함수를 통해 명시적으로 통일해서 같은 실수를 구조적으로 막는다.
 
     Returns: (images, labels, dataset) — images/labels는 아직 .to(device) 안 된 CPU 텐서.

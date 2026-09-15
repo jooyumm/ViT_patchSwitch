@@ -1,7 +1,7 @@
 import torch
 import timm
 
-# ViT_tradeoff/src/models.py에서 그대로 가져오되, 이 프로젝트(PatchSwitch)는 P8/P16만
+# ViT_tradeoff/src/models.py에서 그대로 가져오되, 이 프로젝트(ViT_patchSwitch)는 P8/P16만
 # 다룬다(PGD/P32는 범위 밖) -- P32 항목만 제외
 MODEL_NAMES = {
     8:  'vit_base_patch8_224.augreg2_in21k_ft_in1k',
