@@ -1,0 +1,10 @@
+#!/bin/bash
+#SBATCH --job-name=vitguard_diversity
+#SBATCH --partition=suma_rtx4090
+#SBATCH --qos=base_qos
+#SBATCH --gres=gpu:1
+#SBATCH --time=01:00:00
+#SBATCH --output=defense/08_diversity_diagnostic/results/08_diversity_run_%j.txt
+cd /home/jooyumm/ViT_robust/PatchSwitch
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+python defense/08_diversity_diagnostic/vitguard_diversity_test.py --seed 456 --num_samples 50 --chunk 20

@@ -1,0 +1,26 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+  Device: CUDA (NVIDIA GeForce RTX 4090)
+  시도: vit_base_patch16_224.augreg2_in21k_ft_in1k
+  ✓ 로드 성공: vit_base_patch16_224.augreg2_in21k_ft_in1k  (P=16, tokens=196, params=86.6M)
+  시도: vit_base_patch8_224.augreg2_in21k_ft_in1k
+  ✓ 로드 성공: vit_base_patch8_224.augreg2_in21k_ft_in1k  (P=8, tokens=784, params=86.6M)
+  Dataset: ImageNet-1k val | samples=30 | classes=1000
+[참고] P16 clean acc: 0.933  P8 clean acc: 0.933
+
+[PatchFool on P16] 공격 생성 중 (attn_layer_idx=4, 표준 attention 선택)...
+
+탐지 임계값(top-4 mass, Youden's J 최적): 0.5044 (J=0.833)  [layer_sweep 결과 재사용 — 같은 30개 표본이라 다소 낙관적 편향 가능]
+clean 30개 중 오탐(flag) 비율: 0.000 (0/30)
+공격 30개 중 정탐(flag) 비율: 0.767 (23/30)
+
+=== (1) 공격 성공 이미지 -> P8 통째 재분류 시 clean label 복원율 ===
+  공격 성공 이미지(원래 맞았는데 P16이 틀림): 27/30
+  P8로 재분류 시 복원: 26/27 = 0.963
+  (참고: 그 중 탐지기가 실제로 flag한 것 21/27, flag된 것 중 복원: 21/21)
+
+=== (2) clean 이미지 오탐 -> P8 전환 시 부작용(오히려 틀림) 비율 ===
+  원래 P16이 맞힌 이미지: 28/30
+  그 중 오탐(flag)된 것: 0/28
+  오탐 -> P8 전환 시 오히려 틀림: 0/1 = 0.000
+
+Saved: /home/jooyumm/ViT_robust/ViT_robust/probes/results/p8_rescue_test.npz
