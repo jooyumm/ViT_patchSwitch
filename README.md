@@ -200,10 +200,10 @@ ViT_patchSwitch/
 - **코드**: [`defense/04_diversity_diagnostic/08_diversity_diagnostic/`](defense/04_diversity_diagnostic/08_diversity_diagnostic/)
 - **결과**: [`results/04_diversity_diagnostic/08_diversity_diagnostic/08_diversity_diagnostic_headline.png`](results/04_diversity_diagnostic/08_diversity_diagnostic/08_diversity_diagnostic_headline.png) ⭐
 
-### 5. 부분 공유 탐색 — 실패, 종료된 방향 (§11+§12+§13)
+### 5. 부분 공유 탐색 — 실패, 종료된 방향 (§11+§12+§13+§15)
 "뒷부분 layer를 P16/P8이 공유하면 체크포인트 2벌 문제를 풀 수 있지 않을까"를 사전 점검(§11)
-→ 실제 프로토타입(§12) → 재학습 없는 값싼 보정 시도(§13) 순으로 검증하고 **완전히 접은**
-섹션. 셋 다 "부분 공유해봤는데 안 됐다"는 하나의 서사로 이어진다.
+→ 실제 프로토타입(§12) → 재학습 없는 값싼 보정 시도(§13) → **§12의 증거 자체가 얼마나
+단단한지 재검증**(§15) 순으로 검증하고 **완전히 접은** 섹션.
 
 - **§11 Activation 유사도**: CKA로 6·9번째 층의 표현 유사도를 matched/shuffled(우연 수준)
   비교 → CKA 0.87~0.96(우연 수준 0.11~0.38보다 훨씬 높음), 공유해도 될 것 같다는 신호
@@ -211,12 +211,31 @@ ViT_patchSwitch/
   하이브리드 모델 제작 → branch8(P8 초반부+공유 후반부) clean accuracy가 **0%로 완전 붕괴**
 - **§13 LayerNorm 재보정**: 재학습 없이 공유 LayerNorm 15개의 gamma/beta만 branch8 실제
   통계에 맞춰 closed-form 재계산 → **재보정 전후 모두 0%**, 이 방향 완전 종료
+- **§15 §12 재검증 (confound 제거)** ⚠️ **아직 GPU에서 정식으로 안 돌림, 코드만 검증된 상태**:
+  §12의 0% 붕괴는 사실 두 가지 원인이 섞여 있었다 — (a) 두 모델의 표현이 진짜 안 맞는 것,
+  (b) P8 초반부가 내놓는 785토큰이 P16 후반부가 학습 때 한 번도 본 적 없는 길이(원래
+  197토큰)라 그냥 모양이 안 맞아서 깨진 것. 이 둘을 분리하려고: (1) P8의 784패치 토큰을
+  2×2 average pooling으로 196개로 줄여 시퀀스 길이를 맞춘 뒤 재시도, (2) 양성 대조군으로
+  §8에서 쓴 "같은 P16, 다른 학습" 체크포인트끼리 이어붙여서 "독립 학습된 네트워크는
+  뭐든 못 붙인다"는 일반 현상과 분리, (3) 최소제곱으로 접합부에 선형 보정을 피팅해서
+  "좌표계만 다른 건지, 진짜 다른 정보를 담고 있는 건지"까지 확인. `--num_calib 8
+  --num_eval 6`짜리 CPU 스모크 테스트(코드 정상 작동 확인 목적, **표본이 너무 작아서
+  결론 근거로 쓰면 안 됨**)에서는 sanity(P16→P16)=83.3%, naive(§12 재현)=0.0%,
+  **pooled(시퀀스 길이 맞춤)=0.0%**(그대로 붕괴 — 시퀀스 길이 confound가 아니었을 수
+  있다는 신호), **양성 대조군(P16-A→P16-B)=83.3%**(안 무너짐 — "독립 학습이면 다
+  안 된다"가 아니라 patch size 차이가 특별히 문제라는 §5/§8과 일치하는 방향), 선형
+  보정 후=50.0%(부분 회복은 하지만 완전 회복은 아님). 방향성은 §5/§12의 원래 판단과
+  일치하지만 **n=6은 통계적으로 무의미**하니, 실제 근거로 쓰려면 `run_incompatibility_test.sh`
+  (calibration 100 / eval 50)를 클러스터에서 돌려야 함.
 - **코드**: [`defense/05_partial_share_exploration/`](defense/05_partial_share_exploration/)
-  (하위에 `11_activation_similarity/`, `12_partial_share_prototype/`, `13_ln_recalibration/`)
+  (하위에 `11_activation_similarity/`, `12_partial_share_prototype/`, `13_ln_recalibration/`,
+  `15_incompatibility_rigor/`)
 - **결과**: [`results/05_partial_share_exploration/`](results/05_partial_share_exploration/) —
   `11_activation_similarity/11_activation_similarity_viz.png`,
   `12_partial_share_prototype/12_hybrid_partial_share_collapse.png`,
-  `13_ln_recalibration/13_hybrid_ln_recalibration_viz.png`
+  `13_ln_recalibration/13_hybrid_ln_recalibration_viz.png`,
+  `15_incompatibility_rigor/15_incompatibility_rigor_viz.png` (§15는 `run_incompatibility_test.sh`
+  실행 전까지는 비어있음)
 
 ### §9. Protocol C — ViT_tradeoff로 이동
 면적 대신 토큰 개수를 P8/P16/**P32**에서 동일하게 고정하는 실험이라(P32 포함) 이 프로젝트
@@ -268,6 +287,14 @@ CrossViT류로 "backbone 하나 공유 + patch_embed만 P별로 따로" 만들�
 **그래서 이 방향은 보류가 아니라 종료한다.** 저렴하게 시도할 수 있는 우회로는 다 막혔고, 남은
 선택지는 불확실한 재학습뿐인데, 지금 독립 P8/P16 구조가 이미 검증된 실제 작동하는 방어라서
 그걸 유지하는 쪽이 낫다고 판단.
+
+**2026-09-16 보강(§15)**: §12의 "0% 붕괴"가 사실은 시퀀스 길이 불일치(785 vs 197토큰) 때문일
+수도 있다는 지적이 있어서, 그 confound를 제거하고 재검증하는 실험(§15)을 추가했다. 코드
+작성·CPU 스모크 테스트(n=6, 결론 근거로 쓰기엔 너무 작음)까지는 끝났고, 방향성 — pooled
+조건(시퀀스 길이 맞춤)도 여전히 붕괴, 양성 대조군(같은 patch size끼리는 안 무너짐) — 은
+원래 판단과 일치하지만, **통계적으로 의미 있는 결론을 내려면 클러스터에서 정식 실행
+(calibration 100/eval 50)이 필요**하다. 그 전까지는 "국소 전환으로 우회할 여지는 없어 보인다"는
+잠정 신호로만 취급할 것 — 이 결과가 나오기 전에는 로드맵의 "종료" 판단을 바꾸지 않는다.
 
 ### 확인된 것 (재확인 불필요)
 - 탐지(L=12 raw attention) + localization(top-1) 메커니즘은 견고함, 레이어 선택에 안 흔들림
