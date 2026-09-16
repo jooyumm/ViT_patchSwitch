@@ -14,10 +14,15 @@
 
 **2026-09-16 재구성**: 원래 14개(§1~§14, 그 중 §5는 실험 아님·§9는 ViT_tradeoff로 이동이라
 실질 12개)로 나뉘어 있던 실험을 8페이지 논문 분량에 맞춰 **5개 결과 섹션**으로 물리적으로
-통합했다. 각 섹션 폴더 안에 원래 실험들이 하위 폴더로 그대로 들어있어 개별 스크립트·npz·그림은
-전부 보존되고, 대신 섹션마다 원본 그림들을 합친 `*_combined.png` 하나가 논문에 바로 쓸 수 있는
-형태로 새로 생겼다. 아래 "실험 목록"의 §번호는 이 통합 이전 번호를 그대로 쓴다(원본 파일명·npz
-키가 이 번호를 쓰고 있어서 바꾸지 않았다).
+재편했다. 그리고 **코드(`defense/`)와 결과물(`results/`)을 최상위에서 분리**했다 — 전에는
+실험 폴더 하나에 `.py`/`.sh`와 그림/npz가 섞여 있었는데, 이제 `defense/`에는 코드만,
+`results/`에는 그림·npz·로그만 있고 두 트리는 `GG_그룹/NN_실험/` 경로가 완전히 같은 모양으로
+대응한다(예: 코드는 `defense/01_detection_localization/02_localization/`, 그 결과물은
+`results/01_detection_localization/02_localization/`). 그림은 억지로 하나로 합치지 않고
+원래대로 실험별 개별 그림을 유지한다 — "합친다"는 여러 정보를 한 그래프 안에 같이 보여줄 수
+있을 때만 의미가 있지, 이미 완성된 그림을 이어붙이는 건 별 의미가 없다고 판단해서 되돌렸다.
+아래 "실험 목록"의 §번호는 재구성 이전 번호를 그대로 쓴다(원본 파일명·npz 키가 이 번호를
+쓰고 있어서 바꾸지 않았다).
 
 ## 한줄 요약 + 핵심 성능
 
@@ -45,47 +50,51 @@ ViT_patchSwitch/
       lavan.py                        원본과 동일
       patch_fool.py                    원본과 동일
       (pgd.py 없음 — 이 프로젝트 범위 밖)
-  results/
+  defense/                         실험 코드 (.py, .sh) — 결과물은 하나도 없음
     01_detection_localization/      §1+§2+§3+§4 — 탐지·위치특정·회피견고성·레이어일반화
-      01_signature/                   §1 (구 defense/01_detection_feasibility/)
-      02_localization/                 §2 (구 defense/02_localization/)
-      03_evasion_robustness/            §3 (구 defense/03_evasion_attempts/)
-      04_layeridx_generalization/        §4 (구 defense/04_layeridx_generalization/)
-      01_detection_localization_combined.png   ← 논문용 통합 그림 (5패널)
+      01_signature/                   §1
+      02_localization/                 §2
+      03_evasion_robustness/            §3
+      04_layeridx_generalization/        §4
     02_system_validation/           §6+§10 — 최종 시스템 검증 + 배포 비용
-      06_final_validation/            §6 (구 defense/06_final_validation/)
-      10_latency_memory/               §10 (구 defense/10_latency_memory/)
-      02_system_validation_combined.png        ← 논문용 통합 그림 (2패널)
+      06_final_validation/            §6
+      10_latency_memory/               §10
     03_adaptive_attack/             §7+§14 — naive/완전판 adaptive attacker
-      07_joint_attack/                 §7 (구 defense/07_joint_attack/)
-      14_adaptive_evasion_full/          §14 (구 defense/14_adaptive_evasion_full/)
-      03_adaptive_attack_combined.png          ← 논문용 통합 그림 (2패널)
-    04_diversity_diagnostic/        §8 — 핵심 반전 결과, 원래부터 독립 실험이라 통합 없음
-      results/08_diversity_diagnostic_headline.png  ⭐
+      07_joint_attack/                 §7
+      14_adaptive_evasion_full/          §14
+    04_diversity_diagnostic/        §8 — 핵심 반전 결과
+      08_diversity_diagnostic/
     05_partial_share_exploration/   §11+§12+§13 — 부분 공유 탐색 (실패, 종료된 방향)
-      11_activation_similarity/         §11 (구 defense/11_activation_similarity/)
-      12_partial_share_prototype/        §12 (구 defense/12_partial_share_prototype/)
-      13_ln_recalibration/                §13 (구 defense/13_ln_recalibration/)
-      05_partial_share_exploration_combined.png   ← 논문용 통합 그림 (3패널)
-    compose_grid.py                 위 4개 combined.png를 만드는 공용 스크립트
-                                     (개별 원본 그림은 그대로 두고 나란히 배치만 함)
+      11_activation_similarity/         §11
+      12_partial_share_prototype/        §12
+      13_ln_recalibration/                §13
+  results/                         결과물(그림 .png, 원자료 .npz, 로그 .txt)만 — 코드 없음
+                                    defense/와 완전히 같은 GG_그룹/NN_실험/ 구조로 대응
+    01_detection_localization/{01_signature,02_localization,03_evasion_robustness,04_layeridx_generalization}/
+    02_system_validation/{06_final_validation,10_latency_memory}/
+    03_adaptive_attack/{07_joint_attack,14_adaptive_evasion_full}/
+    04_diversity_diagnostic/08_diversity_diagnostic/
+    05_partial_share_exploration/{11_activation_similarity,12_partial_share_prototype,13_ln_recalibration}/
   archive/
     06_p8_rescue_test/              §6의 superseded 초기 버전, 재현 가능하게 보존
+                                     (예외적으로 코드+결과물이 한 폴더에 그대로 있음 — 이미
+                                     동결된 archive라 defense/results 분리 대상에서 제외)
 ```
 
-각 하위 실험 폴더(예: `01_detection_localization/02_localization/`)는 여전히 **자기
-완결적**이다: 실험 스크립트(`.py`), 실행 스크립트(`run_*.sh`), 결과+그림(`results/`)이 한
-폴더 안에 다 있다. 절대경로는 모두 프로젝트 루트(`/home/jooyumm/ViT_robust/ViT_patchSwitch`)
-기준 `results/GG_그룹/NN_실험/...` 형태로 갱신했고, npz/그림 로딩은 원래부터 스크립트 자신의
-위치 기준 상대경로(`os.path.dirname(__file__)`)라 폴더를 옮겨도 그대로 작동한다.
+`defense/GG_그룹/NN_실험/` 안의 스크립트가 결과를 저장할 때는 자기 파일 경로에서
+`/defense/`를 `/results/`로 바꾼 경로에 쓴다(`HERE.replace('/defense/', '/results/', 1)`).
+그래서 코드를 옮기면 결과가 자동으로 대응하는 `results/` 위치에 쓰이고, `results/` 트리에는
+코드가 전혀 섞이지 않는다. `run_*.sh`의 `python defense/...` 호출 경로와 `#SBATCH --output=`
+로그 경로도 이 분리에 맞춰 갱신했다.
 
 여러 실험이 같은 공격 로직(예: joint attack)을 쓸 때는 모듈을 폴더마다 **복사**해서 넣었다
 (`patch_fool_joint.py`가 `07_joint_attack/`과 `08_diversity_diagnostic/`에 각각 한 부씩) —
 폴더 간 import를 없애서 폴더 하나만 통째로 옮기거나 지워도 다른 실험이 안 깨지게 하기 위함이다.
 유일한 예외 둘(둘 다 코드 주석으로 명시돼 있음): `archive/06_p8_rescue_test/`가
-`results/01_detection_localization/01_signature/results/`의 산출물을 읽는 것, 그리고
-`04_diversity_diagnostic/viz.py`·`03_adaptive_attack/14_adaptive_evasion_full/viz.py`가
-`03_adaptive_attack/07_joint_attack`의 확정된 숫자를 (npz를 다시 열지 않고) 상수로 인용하는 것.
+`results/01_detection_localization/01_signature/`의 산출물을 읽는 것, 그리고
+`defense/04_diversity_diagnostic/`·`defense/03_adaptive_attack/14_adaptive_evasion_full/`의
+`viz.py`가 `03_adaptive_attack/07_joint_attack`의 확정된 숫자를 (npz를 다시 열지 않고)
+상수로 인용하는 것.
 
 **결과 파일 이름은 전부 `NN_설명.확장자`** 형식이다(예: `01_signature_P16.png`,
 `08_diversity_diagnostic_headline.png`) — `NN`은 통합 이전의 원래 실험 번호와 정확히
@@ -99,24 +108,24 @@ ViT_patchSwitch/
 `/home/jooyumm/backups/probes_backup_20260903.tar.gz`, CISC-W'26 투고 끝날 때까지 보관 예정.
 `ViT_robust→ViT_tradeoff+ViT_patchSwitch` 분리(2026-09-15) 시점엔 git 히스토리가 없었지만,
 그 직후 이 프로젝트를 별도 git 저장소로 초기화했고([`github.com/jooyumm/ViT_patchSwitch`](https://github.com/jooyumm/ViT_patchSwitch)),
-2026-09-16의 5섹션 통합은 그 저장소 안에서 `git mv`로 진행해 히스토리가 보존돼 있다(문제
-생기면 이전 커밋으로 되돌릴 수 있음).
+2026-09-16의 5섹션 재구성·`defense`/`results` 분리는 그 저장소 안에서 `git mv`로 진행해
+히스토리가 보존돼 있다(문제 생기면 이전 커밋으로 되돌릴 수 있음).
 
 ## npz / 로그 정리 정책
 
-**`.npz`는 전부 유지했다.** 지금 있는 npz는 전부 각 폴더의 `viz.py`(또는 원본 실험 스크립트
+**`.npz`는 전부 유지했다.** 지금 있는 npz는 전부 `defense/`의 `viz.py`(또는 원본 실험 스크립트
 자신)가 그림을 다시 그리는 데 쓰는 원자료라, 하나라도 지우면 그 실험의 그림을 재생성할 방법이
-없어진다. 5섹션 통합 때도 npz는 전혀 손대지 않고 폴더만 옮겼다.
+없어진다. 5섹션 재구성·`defense`/`results` 분리 때도 npz는 전혀 손대지 않고 폴더만 옮겼다.
 
 **`nohup_*.txt` 실행 로그는 대부분 삭제했다.** 숫자가 이미 README·npz·그림에 다 들어있어서
 로그 자체는 중복이었던 것들은 지웠다. 예외 3개는 **그 실행 로그가 유일한 원자료라 보존**:
-- `results/04_diversity_diagnostic/results/08_diversity_original_seed456_run_2143709.txt`
+- `results/04_diversity_diagnostic/08_diversity_diagnostic/08_diversity_original_seed456_run_2143709.txt`
   — §8의 원래 seed=456 결과(52.3%)의 `.npz`가 나중에 seed=123 재실행 때 같은 파일명으로
   덮어써져서, 이 로그만 그 수치의 유일한 증거로 남음
-- `results/05_partial_share_exploration/13_ln_recalibration/results/13_ln_recalibration_run_2147532.txt`
+- `results/05_partial_share_exploration/13_ln_recalibration/13_ln_recalibration_run_2147532.txt`
   — 이 실험은 애초에 `.npz`를 저장하지 않는 스크립트라 로그가 유일한 원자료
 - `archive/06_p8_rescue_test/results/06_p8_rescue_test_run_2136804.txt`
-  — archive 자체가 "재현 가능성 증거 보존" 목적이라 로그도 같이 둠
+  — archive 자체가 "재현 가능성 증거 보존" 목적이라 로그도 같이 둠 (코드+결과물 분리 대상 제외)
 
 ## 배경 — 왜 이 조사를 시작했나
 
@@ -141,10 +150,14 @@ ViT_patchSwitch/
   0.900으로 안 뚫림, 대안(정규화) 탐지기만 recall 0.000으로 자체 실패
 - **§4 attn_layer_idx 일반화**: 공격의 attn_layer_idx를 1,2,4,6,8,10으로 바꿔가며 반복 →
   recall@1이 항상 0.900~0.967로 안정적
-- **파일**: [`results/01_detection_localization/`](results/01_detection_localization/)
+- **코드**: [`defense/01_detection_localization/`](defense/01_detection_localization/)
   (하위에 `01_signature/`, `02_localization/`, `03_evasion_robustness/`,
   `04_layeridx_generalization/`)
-- **시각화**: [`01_detection_localization_combined.png`](results/01_detection_localization/01_detection_localization_combined.png) (5패널 통합), 개별 그림은 각 하위 폴더의 `results/`에 그대로 있음
+- **결과**: [`results/01_detection_localization/`](results/01_detection_localization/) —
+  `01_signature/01_signature_P16.png`+`01_layer_sweep_P16.png`,
+  `02_localization/02_localization_viz.png`,
+  `03_evasion_robustness/03_evasion_attempts_summary.png`(+샘플 그림 3장),
+  `04_layeridx_generalization/04_layeridx_generalization_P16.png`
 
 ### 2. 시스템 검증 + 배포 비용 (§6+§10)
 "이 방어를 실제로 쓰면 정확도와 비용이 어떻게 되나"를 하나의 표/그림으로 묶은 섹션.
@@ -155,9 +168,11 @@ ViT_patchSwitch/
   [`archive/06_p8_rescue_test/`](archive/06_p8_rescue_test/)에 보존
 - **§10 배포 비용**: batch=1, warm-up 이후 기준 latency/memory/FLOPs 측정 → **P8이 latency
   2.7배, FLOPs 4.5배 더 비쌈, 메모리는 거의 동일**
-- **파일**: [`results/02_system_validation/`](results/02_system_validation/) (하위에
+- **코드**: [`defense/02_system_validation/`](defense/02_system_validation/) (하위에
   `06_final_validation/`, `10_latency_memory/`)
-- **시각화**: [`02_system_validation_combined.png`](results/02_system_validation/02_system_validation_combined.png) (2패널 통합)
+- **결과**: [`results/02_system_validation/`](results/02_system_validation/) —
+  `06_final_validation/06_final_validation_n200.png`,
+  `10_latency_memory/10_bench_latency_memory_viz.png`
 
 ### 3. Adaptive attacker — naive와 완전판 (§7+§14)
 "방어 구조를 아는 공격자"를 naive(§7)와 탐지 회피까지 명시적으로 노리는 완전판(§14)
@@ -170,9 +185,11 @@ ViT_patchSwitch/
   유지"하는 제약(STRAP-ViT류 설계) 추가 → **회피 제약을 걸어도 §7과 결과가 거의 동일
   (18.4%=18.4%)** — 두 모델을 동시에 속이는 목표 자체가 이미 탐지 회피를 "공짜로" 어느 정도
   포함. 최종 worst-case(무력화+미탐지) = **15.8%**
-- **파일**: [`results/03_adaptive_attack/`](results/03_adaptive_attack/) (하위에
+- **코드**: [`defense/03_adaptive_attack/`](defense/03_adaptive_attack/) (하위에
   `07_joint_attack/`, `14_adaptive_evasion_full/`)
-- **시각화**: [`03_adaptive_attack_combined.png`](results/03_adaptive_attack/03_adaptive_attack_combined.png) (2패널 통합)
+- **결과**: [`results/03_adaptive_attack/`](results/03_adaptive_attack/) —
+  `07_joint_attack/07_joint_attack_test_viz.png`,
+  `14_adaptive_evasion_full/14_adaptive_evasion_full_viz.png`
 
 ### 4. Diversity diagnostic — patch size 차이 vs 그냥 "다른 모델" ⭐ 핵심 반전 결과
 - **질문**: 방어력의 원천이 토큰화 구조 차이인지, 그냥 두 모델이 달라서인지?
@@ -180,14 +197,13 @@ ViT_patchSwitch/
   동일 이미지, seed=123으로 페어링 — 아래 "샘플링 감사" 참고)
 - **결과**: 같은 patch size, 다른 학습 = **74.4%** 뚫림 vs 다른 patch size(§7) = 18.4% →
   **방어력의 핵심은 "다른 patch size"이지 "다른 모델"이 아니다**
-- **파일**: [`results/04_diversity_diagnostic/`](results/04_diversity_diagnostic/) — 원래부터
-  독립된 단일 실험이라 통합 없이 그대로 둠
-- **시각화**: [`08_diversity_diagnostic_headline.png`](results/04_diversity_diagnostic/results/08_diversity_diagnostic_headline.png) ⭐
+- **코드**: [`defense/04_diversity_diagnostic/08_diversity_diagnostic/`](defense/04_diversity_diagnostic/08_diversity_diagnostic/)
+- **결과**: [`results/04_diversity_diagnostic/08_diversity_diagnostic/08_diversity_diagnostic_headline.png`](results/04_diversity_diagnostic/08_diversity_diagnostic/08_diversity_diagnostic_headline.png) ⭐
 
 ### 5. 부분 공유 탐색 — 실패, 종료된 방향 (§11+§12+§13)
 "뒷부분 layer를 P16/P8이 공유하면 체크포인트 2벌 문제를 풀 수 있지 않을까"를 사전 점검(§11)
 → 실제 프로토타입(§12) → 재학습 없는 값싼 보정 시도(§13) 순으로 검증하고 **완전히 접은**
-섹션. 셋 다 "부분 공유해봤는데 안 됐다"는 하나의 서사라 그림도 한 장으로 합쳤다.
+섹션. 셋 다 "부분 공유해봤는데 안 됐다"는 하나의 서사로 이어진다.
 
 - **§11 Activation 유사도**: CKA로 6·9번째 층의 표현 유사도를 matched/shuffled(우연 수준)
   비교 → CKA 0.87~0.96(우연 수준 0.11~0.38보다 훨씬 높음), 공유해도 될 것 같다는 신호
@@ -195,9 +211,12 @@ ViT_patchSwitch/
   하이브리드 모델 제작 → branch8(P8 초반부+공유 후반부) clean accuracy가 **0%로 완전 붕괴**
 - **§13 LayerNorm 재보정**: 재학습 없이 공유 LayerNorm 15개의 gamma/beta만 branch8 실제
   통계에 맞춰 closed-form 재계산 → **재보정 전후 모두 0%**, 이 방향 완전 종료
-- **파일**: [`results/05_partial_share_exploration/`](results/05_partial_share_exploration/)
+- **코드**: [`defense/05_partial_share_exploration/`](defense/05_partial_share_exploration/)
   (하위에 `11_activation_similarity/`, `12_partial_share_prototype/`, `13_ln_recalibration/`)
-- **시각화**: [`05_partial_share_exploration_combined.png`](results/05_partial_share_exploration/05_partial_share_exploration_combined.png) (3패널 통합)
+- **결과**: [`results/05_partial_share_exploration/`](results/05_partial_share_exploration/) —
+  `11_activation_similarity/11_activation_similarity_viz.png`,
+  `12_partial_share_prototype/12_hybrid_partial_share_collapse.png`,
+  `13_ln_recalibration/13_hybrid_ln_recalibration_viz.png`
 
 ### §9. Protocol C — ViT_tradeoff로 이동
 면적 대신 토큰 개수를 P8/P16/**P32**에서 동일하게 고정하는 실험이라(P32 포함) 이 프로젝트
