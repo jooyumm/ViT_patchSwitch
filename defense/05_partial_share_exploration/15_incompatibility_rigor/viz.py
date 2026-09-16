@@ -59,7 +59,7 @@ def main():
 
     ref = float(d['model16_ref_acc']) * 100
     ax.axhline(ref, color=GRAY, linestyle='--', linewidth=1, alpha=0.6)
-    ax.text(4.55, ref + 1.5, f'model16 alone: {ref:.1f}%', fontsize=9, color=GRAY, ha='right')
+    ax.text(1.5, ref + 3, f'model16 alone: {ref:.1f}%', fontsize=9, color=GRAY, ha='center')
 
     ax.set_xticks(xs); ax.set_xticklabels(labels, fontsize=FS_TICK)
     ax.set_ylabel('Clean accuracy %'); ax.set_ylim(0, 105)
