@@ -125,12 +125,12 @@ def main():
         pred16_adv = model16(adv16).argmax(dim=1)
 
     # 임계값: 기존 layer_sweep 결과 재사용 (같은 30개 표본이라 다소 낙관적 편향 가능성 있음)
-    # [재구성 주의] 01_layer_sweep_P16_raw.npz는 ViT_patchSwitch/defense/01_detection_feasibility/results/에
+    # [재구성 주의] 01_layer_sweep_P16_raw.npz는 ViT_patchSwitch/results/01_detection_localization/01_signature/results/에
     # 있음(vitguard_layer_sweep.py 산출물) -- 이 스크립트(vitguard_p8_rescue_test.py)는
     # ViT_patchSwitch/archive/06_p8_rescue_test/에 있지만 원래 01_detection_feasibility의 산출물을
     # 재사용하던 관계라 경로가 폴더 경계를 넘어감 (ViT_robust/probes/ 시절부터 있던 관계, 원래도 그랬음)
-    npz_path = os.path.join(ROOT, 'defense', '01_detection_feasibility', 'results',
-                             '01_layer_sweep_P16_raw.npz')
+    npz_path = os.path.join(ROOT, 'results', '01_detection_localization', '01_signature',
+                             'results', '01_layer_sweep_P16_raw.npz')
     data = np.load(npz_path)
     clean_top4 = data['12_raw_clean_top4']
     pf_top4 = data['12_raw_pf_top4']
