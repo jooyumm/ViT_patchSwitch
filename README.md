@@ -168,11 +168,18 @@ ViT_patchSwitch/
   [`archive/06_p8_rescue_test/`](archive/06_p8_rescue_test/)에 보존
 - **§10 배포 비용**: batch=1, warm-up 이후 기준 latency/memory/FLOPs 측정 → **P8이 latency
   2.7배, FLOPs 4.5배 더 비쌈, 메모리는 거의 동일**
+- **기대 비용 분석 (§6+§10 결합, 새 GPU 실험 아님)**: P8은 개별로는 2.7배/4.5배 비싸지만,
+  실제로는 탐지기가 flag한 이미지에서만 추가로 도니까 시스템 전체의 **기대 비용**은
+  공격 이미지 비율 π에 따라 `E[cost(π)] = P16_cost + [(1-π)·FPR + π·recall] · P8_cost`
+  (FPR=5.0%, recall=64.0%, §6의 held-out eval 값 그대로). 계산해보면 π=1%에서 P16 대비
+  **1.15배**, π=10%에서 **1.30배**, π=50%(비현실적으로 높음)에서도 **1.95배**로, "매번
+  P16+P8 둘 다 돈다"는 naive 대안(항상 3.74배)보다 어떤 공격 비율에서도 확실히 쌈.
 - **코드**: [`defense/02_system_validation/`](defense/02_system_validation/) (하위에
-  `06_final_validation/`, `10_latency_memory/`)
+  `06_final_validation/`, `10_latency_memory/`, `expected_cost_analysis.py`)
 - **결과**: [`results/02_system_validation/`](results/02_system_validation/) —
   `06_final_validation/06_final_validation_n200.png`,
-  `10_latency_memory/10_bench_latency_memory_viz.png`
+  `10_latency_memory/10_bench_latency_memory_viz.png`,
+  `expected_cost_vs_prevalence.png`
 
 ### 3. Adaptive attacker — naive와 완전판 (§7+§14)
 "방어 구조를 아는 공격자"를 naive(§7)와 탐지 회피까지 명시적으로 노리는 완전판(§14)
