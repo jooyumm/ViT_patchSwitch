@@ -39,7 +39,7 @@ P16으로 효율적으로 추론하다가, attention 기반 탐지로 공격이 
 | 완전판 adaptive (탐지 회피 제약까지) | 18.4%로 동일, 최종 worst-case(무력화+미탐지) 15.8% |
 | ⭐ Diversity diagnostic | 같은 patch size·다른 학습 74.4% 뚫림 vs 다른 patch size 18.4% → **방어력의 원천은 "다른 patch size"** |
 | 배포 비용 | P8이 latency 2.7배, FLOPs 4.5배 (메모리는 거의 동일); 기대비용은 π=10%에서 1.30배 |
-| 🧩 국소 토큰 세분화 (§16, 진행 중) | 의심 패치 1개만 P8 서브패치로 교체(196→200토큰, P8 전체 재실행 없음) → 복원율 84.6%, clean 오탐 비용 0% |
+| 🧩 국소 토큰 세분화 (§16+§17) | 의심 패치 1개만 P8 서브패치로 교체(196→200토큰, P8 전체 재실행 없음) → 복원율 84.6%, clean 오탐 비용 0%, **joint attack 완전 무력화 16.7%(§7의 18.4%와 근접, §8의 74.4% 함정 회피)** |
 
 ## 디렉토리 구조
 
@@ -66,15 +66,16 @@ ViT_patchSwitch/
       14_adaptive_evasion_full/          §14
     04_diversity_diagnostic/        §8 — 핵심 반전 결과
       08_diversity_diagnostic/
-    06_local_token_subdivision/     §16 — 국소 토큰 세분화 (진행 중, 2026-09-17 시작)
+    06_local_token_subdivision/     §16+§17 — 국소 토큰 세분화 (2026-09-17 시작)
       16_local_swap_l12/                §16 1단계
+      17_local_swap_joint_attack/       §17 joint attack stress test
   results/                         결과물(그림 .png, 원자료 .npz, 로그 .txt)만 — 코드 없음
                                     defense/와 완전히 같은 GG_그룹/NN_실험/ 구조로 대응
     01_detection_localization/{01_signature,02_localization,03_evasion_robustness,04_layeridx_generalization}/
     02_system_validation/{06_final_validation,10_latency_memory}/
     03_adaptive_attack/{07_joint_attack,14_adaptive_evasion_full}/
     04_diversity_diagnostic/08_diversity_diagnostic/
-    06_local_token_subdivision/16_local_swap_l12/
+    06_local_token_subdivision/{16_local_swap_l12,17_local_swap_joint_attack}/
 ```
 
 **2026-09-17: §11~13(부분 공유 탐색)과 archive/(06_p8_rescue_test, 15_incompatibility_rigor_global_splice)를
@@ -258,12 +259,34 @@ archive/15_incompatibility_rigor_global_splice)은 코드와 함께 npz/로그�
 - **코드**: [`defense/06_local_token_subdivision/16_local_swap_l12/`](defense/06_local_token_subdivision/16_local_swap_l12/)
 - **결과**: [`results/06_local_token_subdivision/16_local_swap_l12/16_local_swap_l12_viz.png`](results/06_local_token_subdivision/16_local_swap_l12/16_local_swap_l12_viz.png) ⭐
 
+**§17 — joint attack stress test: §8의 함정에 빠지는가?** ⭐ **이 방향의 생사 결정 실험**
+- **왜 필요했나**: 어댑터로 P8을 P16 좌표계에 맞추는 건 본질적으로 "두 표현을 정렬"하는
+  작업이다. §8은 정렬된 표현(같은 patch size, 다른 학습 — P16-A/B)이 joint attack에 오히려
+  더 취약하다는 걸 이미 보여줬다(74.4% 완전 무력화 vs 다른 patch size 18.4%). §16의 선형
+  브릿지가 이 함정에 빠지면, 복원율이 아무리 좋아도 adaptive attacker에게 무의미해진다.
+- **방법**: §7(`vitguard_joint_attack_test.py`)과 완전히 같은 세팅(seed=123, n=50,
+  attn_layer_idx=4, 250 iter Adam)으로, P8 전체 대신 **§16의 local-swap 경로**를 두 번째
+  타깃으로 놓고 동일한 joint attack(loss = CE(P16) + CE(local-swap 경로))을 걸었다. 나이브
+  baseline(P16만 공격 후 전이 확인)도 같은 seed=123 50장으로 다시 재서 §8이 처음 겪었던
+  "다른 표본끼리 비교" 실수를 반복하지 않게 했다.
+- **결과 (n=50, 2026-09-17, job 2275606)** ⭐⭐: 나이브 전이 2.5%(1/40, §7의 2.9%와
+  거의 동일) → **joint attack 완전 무력화율 16.7%(7/42)**. **§7의 18.4%(다른 patch size)에
+  매우 가깝고, §8의 74.4%(정렬된 표현)와는 한참 떨어져 있다.** 즉 **선형 어댑터로 표현을
+  이어붙였는데도 §8의 함정에 안 빠졌다** — 국소(200개 중 4개 토큰)로만 다리를 놓아서,
+  나머지 196개 토큰은 여전히 순수 P16 경로라 "정렬로 인한 취약성"이 전체 시스템을
+  압도하지 못한 것으로 보인다. 탐지기(기존 calibration 임계값)는 joint attack의 4.0%만
+  flag(§7의 joint attack 20%보다 낮음 — 참고 사항, 아직 원인 분석 안 함).
+  **결론: 이 방향은 §8의 함정을 피했다 — 논문에 넣을 근거로 충분히 단단해졌다.**
+- **코드**: [`defense/06_local_token_subdivision/17_local_swap_joint_attack/`](defense/06_local_token_subdivision/17_local_swap_joint_attack/)
+- **결과**: [`results/06_local_token_subdivision/17_local_swap_joint_attack/17_local_swap_joint_attack_viz.png`](results/06_local_token_subdivision/17_local_swap_joint_attack/17_local_swap_joint_attack_viz.png) ⭐
+
 **아직 다루지 않은 것 (다음 단계 후보)**:
 - 라우터를 L=6으로 당겨서(잔여 레이어 7~12로 "치유"할 시간을 줌) 정확도가 얼마나 떨어지는지
   — L=6의 PF vs Clean AUROC가 0.639(L=12의 0.879보다 낮음)라 recall 손실이 예상됨
 - LaVAN용 보완 게이트 (위 §1 항목 참고, patch_embedding norm outlier 후보)
-- (§15와 동일 경고) 이 로컬 브릿지가 §8이 보여준 "정렬된 표현=joint attack에 취약" 함정에
-  빠지는지 adaptive attacker로 스트레스 테스트 필요
+- §14급 완전판 adaptive attack(탐지 회피 제약까지 포함) — §17은 §7급(나이브 joint)까지만 검증함
+- §16의 84.6% 복원율(n=39, 95% CI [73.3%, 95.9%])은 n이 작아 신뢰구간이 넓음 — 더 큰 n으로
+  재확인하면 논문에 쓸 수치가 더 단단해짐
 
 ### §9. Protocol C — ViT_tradeoff로 이동
 면적 대신 토큰 개수를 P8/P16/**P32**에서 동일하게 고정하는 실험이라(P32 포함) 이 프로젝트
