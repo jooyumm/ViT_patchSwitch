@@ -66,10 +66,6 @@ ViT_patchSwitch/
       14_adaptive_evasion_full/          §14
     04_diversity_diagnostic/        §8 — 핵심 반전 결과
       08_diversity_diagnostic/
-    05_partial_share_exploration/   §11+§12+§13 — 부분 공유 탐색 (실패, 종료된 방향)
-      11_activation_similarity/         §11
-      12_partial_share_prototype/        §12
-      13_ln_recalibration/                §13
     06_local_token_subdivision/     §16 — 국소 토큰 세분화 (진행 중, 2026-09-17 시작)
       16_local_swap_l12/                §16 1단계
   results/                         결과물(그림 .png, 원자료 .npz, 로그 .txt)만 — 코드 없음
@@ -78,15 +74,13 @@ ViT_patchSwitch/
     02_system_validation/{06_final_validation,10_latency_memory}/
     03_adaptive_attack/{07_joint_attack,14_adaptive_evasion_full}/
     04_diversity_diagnostic/08_diversity_diagnostic/
-    05_partial_share_exploration/{11_activation_similarity,12_partial_share_prototype,13_ln_recalibration}/
     06_local_token_subdivision/16_local_swap_l12/
-  archive/
-    06_p8_rescue_test/              §6의 superseded 초기 버전, 재현 가능하게 보존
-    15_incompatibility_rigor_global_splice/  §15 (2026-09-17, §16의 국소 버전으로 대체돼
-                                     역할 종료 — 코드+결과물 그대로 보존)
-                                     (예외적으로 코드+결과물이 한 폴더에 그대로 있음 — 이미
-                                     동결된 archive라 defense/results 분리 대상에서 제외)
 ```
+
+**2026-09-17: §11~13(부분 공유 탐색)과 archive/(06_p8_rescue_test, 15_incompatibility_rigor_global_splice)를
+전부 삭제했다** — 전부 이미 종료·대체된 방향이라 코드로서는 더 이상 필요 없다고 판단. 실험
+자체의 결론(수치)은 아래 로드맵/§5 요약에 프로즈로 남겨뒀고, 원본 코드·npz·그림이 필요하면
+git 히스토리(`git log --diff-filter=D -- defense/05_partial_share_exploration/`)에서 복구 가능.
 
 `defense/GG_그룹/NN_실험/` 안의 스크립트가 결과를 저장할 때는 자기 파일 경로에서
 `/defense/`를 `/results/`로 바꾼 경로에 쓴다(`HERE.replace('/defense/', '/results/', 1)`).
@@ -97,11 +91,10 @@ ViT_patchSwitch/
 여러 실험이 같은 공격 로직(예: joint attack)을 쓸 때는 모듈을 폴더마다 **복사**해서 넣었다
 (`patch_fool_joint.py`가 `07_joint_attack/`과 `08_diversity_diagnostic/`에 각각 한 부씩) —
 폴더 간 import를 없애서 폴더 하나만 통째로 옮기거나 지워도 다른 실험이 안 깨지게 하기 위함이다.
-유일한 예외 둘(둘 다 코드 주석으로 명시돼 있음): `archive/06_p8_rescue_test/`가
-`results/01_detection_localization/01_signature/`의 산출물을 읽는 것, 그리고
-`defense/04_diversity_diagnostic/`·`defense/03_adaptive_attack/14_adaptive_evasion_full/`의
+유일한 예외: `defense/04_diversity_diagnostic/`·`defense/03_adaptive_attack/14_adaptive_evasion_full/`의
 `viz.py`가 `03_adaptive_attack/07_joint_attack`의 확정된 숫자를 (npz를 다시 열지 않고)
-상수로 인용하는 것.
+상수로 인용하는 것. (2026-09-17 이전엔 `archive/06_p8_rescue_test/`가 §1 산출물을 읽는
+것도 예외였는데, 그 폴더 자체를 삭제하면서 없어짐 — 아래 참고)
 
 **결과 파일 이름은 전부 `NN_설명.확장자`** 형식이다(예: `01_signature_P16.png`,
 `08_diversity_diagnostic_headline.png`) — `NN`은 통합 이전의 원래 실험 번호와 정확히
@@ -120,19 +113,18 @@ ViT_patchSwitch/
 
 ## npz / 로그 정리 정책
 
-**`.npz`는 전부 유지했다.** 지금 있는 npz는 전부 `defense/`의 `viz.py`(또는 원본 실험 스크립트
-자신)가 그림을 다시 그리는 데 쓰는 원자료라, 하나라도 지우면 그 실험의 그림을 재생성할 방법이
-없어진다. 5섹션 재구성·`defense`/`results` 분리 때도 npz는 전혀 손대지 않고 폴더만 옮겼다.
+**현재 살아있는(활성) 실험의 `.npz`는 전부 유지한다.** `defense/`의 `viz.py`(또는 원본 실험
+스크립트 자신)가 그림을 다시 그리는 데 쓰는 원자료라, 하나라도 지우면 그 실험의 그림을
+재생성할 방법이 없어진다. 5섹션 재구성·`defense`/`results` 분리 때도 npz는 전혀 손대지 않고
+폴더만 옮겼다. **단, 2026-09-17에 이미 종료·대체된 방향(§11~13, archive/06_p8_rescue_test,
+archive/15_incompatibility_rigor_global_splice)은 코드와 함께 npz/로그도 통째로 삭제했다** —
+필요하면 git 히스토리에서 복구 가능(아래 "삭제된 방향" 참고).
 
 **`nohup_*.txt` 실행 로그는 대부분 삭제했다.** 숫자가 이미 README·npz·그림에 다 들어있어서
-로그 자체는 중복이었던 것들은 지웠다. 예외 3개는 **그 실행 로그가 유일한 원자료라 보존**:
+로그 자체는 중복이었던 것들은 지웠다. 남아있는 예외 1개는 **그 실행 로그가 유일한 원자료라 보존**:
 - `results/04_diversity_diagnostic/08_diversity_diagnostic/08_diversity_original_seed456_run_2143709.txt`
   — §8의 원래 seed=456 결과(52.3%)의 `.npz`가 나중에 seed=123 재실행 때 같은 파일명으로
   덮어써져서, 이 로그만 그 수치의 유일한 증거로 남음
-- `results/05_partial_share_exploration/13_ln_recalibration/13_ln_recalibration_run_2147532.txt`
-  — 이 실험은 애초에 `.npz`를 저장하지 않는 스크립트라 로그가 유일한 원자료
-- `archive/06_p8_rescue_test/results/06_p8_rescue_test_run_2136804.txt`
-  — archive 자체가 "재현 가능성 증거 보존" 목적이라 로그도 같이 둠 (코드+결과물 분리 대상 제외)
 
 ## 배경 — 왜 이 조사를 시작했나
 
@@ -179,8 +171,9 @@ ViT_patchSwitch/
 
 - **§6 최종 검증**: 200장을 calibration 100/evaluation 100으로 분리, 임계값은 calibration에서만,
   성능(recall/FPR/복원율)은 evaluation에서만 계산 → **FPR 5.0%, 탐지 recall 64.0%, 복원율
-  97.1%, 시스템 정확도 13.0%→64.0%(5배), clean 무손실**. 초기 순환평가 편향 버전은
-  [`archive/06_p8_rescue_test/`](archive/06_p8_rescue_test/)에 보존
+  97.1%, 시스템 정확도 13.0%→64.0%(5배), clean 무손실**. 초기 순환평가 편향 버전(임계값을
+  정한 표본으로 그대로 평가해서 낙관적으로 편향됐던 파일럿, recall 76.7%로 더 높게 나왔었음)은
+  `archive/06_p8_rescue_test/`에 보존해뒀었는데 2026-09-17에 삭제 — git 히스토리에서 복구 가능
 - **§10 배포 비용**: batch=1, warm-up 이후 기준 latency/memory/FLOPs 측정 → **P8이 latency
   2.7배, FLOPs 4.5배 더 비쌈, 메모리는 거의 동일**
 - **기대 비용 분석 (§6+§10 결합, 새 GPU 실험 아님)**: P8은 개별로는 2.7배/4.5배 비싸지만,
@@ -222,48 +215,26 @@ ViT_patchSwitch/
 - **코드**: [`defense/04_diversity_diagnostic/08_diversity_diagnostic/`](defense/04_diversity_diagnostic/08_diversity_diagnostic/)
 - **결과**: [`results/04_diversity_diagnostic/08_diversity_diagnostic/08_diversity_diagnostic_headline.png`](results/04_diversity_diagnostic/08_diversity_diagnostic/08_diversity_diagnostic_headline.png) ⭐
 
-### 5. 부분 공유 탐색 — 실패, 종료된 방향 (§11+§12+§13+§15)
-"뒷부분 layer를 P16/P8이 공유하면 체크포인트 2벌 문제를 풀 수 있지 않을까"를 사전 점검(§11)
-→ 실제 프로토타입(§12) → 재학습 없는 값싼 보정 시도(§13) → **§12의 증거 자체가 얼마나
-단단한지 재검증**(§15) 순으로 검증하고 **완전히 접은** 섹션.
+### 5. 부분 공유 탐색 — 실패, 종료된 방향 (§11+§12+§13+§15) — **코드 삭제됨 (2026-09-17)**
+"뒷부분 layer를 P16/P8이 공유하면 체크포인트 2벌 문제를 풀 수 있지 않을까"를 검증하고
+**완전히 접은** 섹션. §16(아래, 국소 토큰 세분화)으로 방향이 완전히 바뀌면서 코드·npz·그림을
+전부 지웠다 — 아래는 결론만 남긴 요약이고, 원본이 필요하면 git 히스토리에서 복구 가능
+(`git log --diff-filter=D --summary -- defense/05_partial_share_exploration/`).
 
-- **§11 Activation 유사도**: CKA로 6·9번째 층의 표현 유사도를 matched/shuffled(우연 수준)
-  비교 → CKA 0.87~0.96(우연 수준 0.11~0.38보다 훨씬 높음), 공유해도 될 것 같다는 신호
-- **§12 부분 공유 시제품**: patch_embed+앞 5층은 독립, 뒤 7층+head는 P16 것을 공유하는
-  하이브리드 모델 제작 → branch8(P8 초반부+공유 후반부) clean accuracy가 **0%로 완전 붕괴**
-- **§13 LayerNorm 재보정**: 재학습 없이 공유 LayerNorm 15개의 gamma/beta만 branch8 실제
-  통계에 맞춰 closed-form 재계산 → **재보정 전후 모두 0%**, 이 방향 완전 종료
-- **§15 §12 재검증 (confound 제거)** — 2026-09-16 클러스터에서 정식 실행 완료
-  (job 2263768, calibration=100/eval=50, seed=42, split_layer=5):
-  §12의 0% 붕괴는 사실 두 가지 원인이 섞여 있을 수 있었다 — (a) 두 모델의 표현이 진짜
-  안 맞는 것, (b) P8 초반부가 내놓는 785토큰이 P16 후반부가 학습 때 한 번도 본 적 없는
-  길이(원래 197토큰)라 그냥 모양이 안 맞아서 깨진 것. 이 둘을 분리하려고 (1) P8의 784패치
-  토큰을 2×2 average pooling으로 196개로 줄여 시퀀스 길이를 맞춘 뒤 재시도, (2) 양성
-  대조군으로 §8에서 쓴 "같은 P16, 다른 학습" 체크포인트끼리 이어붙여서 "독립 학습된
-  네트워크는 뭐든 못 붙인다"는 일반 현상과 분리, (3) 최소제곱으로 접합부에 선형 보정을
-  피팅해서 "좌표계만 다른 건지, 진짜 다른 정보를 담고 있는 건지"까지 확인했다.
-  **결과(n=50)**: sanity(P16→P16)=84.0%, naive(§12 재현)=0.0%, **pooled(시퀀스 길이만
-  맞춤)=0.0%**(여전히 완전 붕괴 — §12의 결론은 confound 제거 후에도 유지, 시퀀스 길이
-  문제가 아니라 진짜 표현 불일치), **양성 대조군(P16-A→P16-B)=80.0%**(거의 안 무너짐 —
-  "독립 학습이면 다 안 된다"가 아니라 **patch size 차이가 특별히 치명적**이라는 §5/§8과
-  정확히 일치), **선형 보정 후=84.0%(sanity와 완전히 동일!)** ⭐ — 최소제곱으로 구한
-  768×768 아핀 변환 하나만 접합부에 끼우면 **완전히 회복된다**. §13(LayerNorm 재보정,
-  채널별 스케일/이동만 보정)은 실패했는데 이 풀랭크 아핀 변환(채널 간 회전/혼합까지
-  포함)은 성공했다는 게 핵심 차이 — 즉 두 표현은 **비선형적으로 다른 정보를 담고 있는
-  게 아니라, 선형적으로 재배열된 같은 정보**였다는 뜻. **이건 §5/§12/§13이 내린
-  "물리적으로 불가능" 결론을 정면으로 재검토해야 한다는 신호**다. 다만 이게 실제
-  "국소 전환" 방어로 이어질지는 별도 판단 필요 — 아래 로드맵의 "2026-09-16 재개(REOPENED)"
-  참고 (전체 재분류 대신 국소 전환을 쓰면 §8이 경고한 "정렬된 표현 = joint attack에
-  더 취약"과 같은 함정에 다시 빠질 위험이 있음). **2026-09-17: §15는 이 결론을 낸 뒤
-  역할이 끝나서 [`archive/15_incompatibility_rigor_global_splice/`](archive/15_incompatibility_rigor_global_splice/)로
-  옮겼다** — 이 발견 자체("선형 변환 하나로 붙는다")를 실제 국소 전환 메커니즘으로 발전시키는
-  후속 작업은 완전히 새 방향이라 별도 섹션 **6번(§16, 아래)**으로 분리했다.
-- **코드**: [`defense/05_partial_share_exploration/`](defense/05_partial_share_exploration/)
-  (하위에 `11_activation_similarity/`, `12_partial_share_prototype/`, `13_ln_recalibration/`)
-- **결과**: [`results/05_partial_share_exploration/`](results/05_partial_share_exploration/) —
-  `11_activation_similarity/11_activation_similarity_viz.png`,
-  `12_partial_share_prototype/12_hybrid_partial_share_collapse.png`,
-  `13_ln_recalibration/13_hybrid_ln_recalibration_viz.png`
+- **§11 Activation 유사도**: CKA로 6·9번째 층의 표현 유사도 비교 → CKA 0.87~0.96(우연 수준
+  0.11~0.38보다 훨씬 높음) — 공유해도 될 것 같다는 신호였음
+- **§12 부분 공유 시제품**: patch_embed+앞 5층 독립, 뒤 7층+head 공유 하이브리드 제작 →
+  branch8 clean accuracy **0%로 완전 붕괴**
+- **§13 LayerNorm 재보정**: 재학습 없이 gamma/beta만 closed-form 재계산 → **재보정 전후
+  모두 0%**
+- **§15 §12 재검증(confound 제거, 2026-09-16, job 2263768, n=50)**: §12의 0% 붕괴가
+  시퀀스 길이 문제(785 vs 197토큰) 때문일 수 있다는 의심을 확인 — 풀링으로 길이를 맞춰도
+  여전히 0%(진짜 표현 불일치가 맞았음), **그런데 최소제곱 선형 변환 하나(768×768 아핀)만
+  접합부에 끼우면 84.0%로 완전 회복**(sanity와 동일). §13(스케일/이동만 보정)은 실패, 이
+  풀랭크 변환(회전/혼합 포함)은 성공 — 두 표현은 비선형이 아니라 **선형적으로 재배열된
+  같은 정보**였다는 뜻. **§5/§12/§13의 "물리적으로 불가능" 결론을 재검토하게 만든 발견.**
+  이게 실제 국소 전환 메커니즘(§16)으로 이어짐 — 다만 §8이 경고한 "정렬된 표현=joint
+  attack에 더 취약" 함정에 §16이 빠지는지는 아직 별도 검증 필요(§16 항목 참고).
 
 ### 6. 국소 토큰 세분화 (§16, 진행 중) — 2026-09-17 시작
 
