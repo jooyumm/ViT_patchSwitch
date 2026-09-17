@@ -2,7 +2,7 @@
 
 **"P16으로 기본 추론하다가, 공격이 의심되는 이미지는 P8로 통째 재분류하는 적응형 방어"**를
 설계·검증하는 독립 프로젝트다. 원래 [`ViT_tradeoff/`](../ViT_tradeoff/)(패치 크기 vs 강건성
-8개 정식 실험 — PGD/LaVAN/PatchFool × P8/P16/P32)에서 나온 발견("PatchFool에 대해 P8이 P16보다
+7개 정식 실험 — PGD/LaVAN/PatchFool × P8/P16/P32)에서 나온 발견("PatchFool에 대해 P8이 P16보다
 압도적으로 강건함")을 실제 방어로 발전시키는 후속 연구를 위해 2026-09-15에 분리했다.
 
 **범위 — ViT_tradeoff와 다른 점**: 이 프로젝트는 방어 메커니즘 자체(토큰화 격자 불일치)에
@@ -129,7 +129,7 @@ ViT_patchSwitch/
 
 ## 배경 — 왜 이 조사를 시작했나
 
-`ViT_tradeoff`의 정식 연구(실험 1~8)에서 PatchFool 공격에 대해 P8이 P16보다 압도적으로
+`ViT_tradeoff`의 정식 연구(실험 1~7)에서 PatchFool 공격에 대해 P8이 P16보다 압도적으로
 강건하다는 걸 확인한 뒤(RA 67.6% vs 9.1%), 이걸 실제로 쓸 수 있는 방어로 만들 수 있는지
 탐색했다. 아이디어: **"평소엔 효율 좋은 P16으로 추론하다가, attention 시그니처로 공격이
 의심되면 그 이미지를 강건한 P8로 다시 분류한다."**
@@ -261,7 +261,7 @@ ViT_patchSwitch/
 
 | 비교 | 방식 | 판정 |
 |---|---|---|
-| `ViT_tradeoff`의 정식 실험 1~8, area-matched #4/#5 포함 | `experiments/main.py`가 loader를 P×attack 루프 밖에서 1회만 생성, 재사용 | ✅ 고정 이미지, 페어링됨 (3 seed는 분산 추정 목적, 문제 아님) |
+| `ViT_tradeoff`의 정식 실험 1~7, area-matched #4/#5 포함 | `experiments/main.py`가 loader를 P×attack 루프 밖에서 1회만 생성, 재사용 | ✅ 고정 이미지, 페어링됨 (3 seed는 분산 추정 목적, 문제 아님) |
 | §1 layer sweep, §4 attn_layer_idx 일반화 | 루프 밖에서 1회 호출 | ✅ 고정 이미지, 페어링됨 |
 | **§8 vs §7** — "52.3% vs 18.4%" 반전 결과의 근거 | §8는 seed=456, §7는 seed=123 — **서로 다른 50장으로 비교되고 있었음** | ❌ 발견 → 재실행으로 수정 |
 
