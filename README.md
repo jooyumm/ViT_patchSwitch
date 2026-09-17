@@ -14,7 +14,8 @@
 
 **2026-09-16 재구성**: 원래 14개(§1~§14, 그 중 §5는 실험 아님·§9는 ViT_tradeoff로 이동이라
 실질 12개)로 나뉘어 있던 실험을 8페이지 논문 분량에 맞춰 **5개 결과 섹션**으로 물리적으로
-재편했다. 그리고 **코드(`defense/`)와 결과물(`results/`)을 최상위에서 분리**했다 — 전에는
+재편했다(2026-09-17에 §16을 추가하면서 6번째 섹션이 생겼다 — 아래 "6. 국소 토큰 세분화"
+참고). 그리고 **코드(`defense/`)와 결과물(`results/`)을 최상위에서 분리**했다 — 전에는
 실험 폴더 하나에 `.py`/`.sh`와 그림/npz가 섞여 있었는데, 이제 `defense/`에는 코드만,
 `results/`에는 그림·npz·로그만 있고 두 트리는 `GG_그룹/NN_실험/` 경로가 완전히 같은 모양으로
 대응한다(예: 코드는 `defense/01_detection_localization/02_localization/`, 그 결과물은
@@ -68,6 +69,8 @@ ViT_patchSwitch/
       11_activation_similarity/         §11
       12_partial_share_prototype/        §12
       13_ln_recalibration/                §13
+    06_local_token_subdivision/     §16 — 국소 토큰 세분화 (진행 중, 2026-09-17 시작)
+      16_local_swap_l12/                §16 1단계
   results/                         결과물(그림 .png, 원자료 .npz, 로그 .txt)만 — 코드 없음
                                     defense/와 완전히 같은 GG_그룹/NN_실험/ 구조로 대응
     01_detection_localization/{01_signature,02_localization,03_evasion_robustness,04_layeridx_generalization}/
@@ -75,8 +78,11 @@ ViT_patchSwitch/
     03_adaptive_attack/{07_joint_attack,14_adaptive_evasion_full}/
     04_diversity_diagnostic/08_diversity_diagnostic/
     05_partial_share_exploration/{11_activation_similarity,12_partial_share_prototype,13_ln_recalibration}/
+    06_local_token_subdivision/16_local_swap_l12/
   archive/
     06_p8_rescue_test/              §6의 superseded 초기 버전, 재현 가능하게 보존
+    15_incompatibility_rigor_global_splice/  §15 (2026-09-17, §16의 국소 버전으로 대체돼
+                                     역할 종료 — 코드+결과물 그대로 보존)
                                      (예외적으로 코드+결과물이 한 폴더에 그대로 있음 — 이미
                                      동결된 archive라 defense/results 분리 대상에서 제외)
 ```
@@ -150,6 +156,14 @@ ViT_patchSwitch/
   0.900으로 안 뚫림, 대안(정규화) 탐지기만 recall 0.000으로 자체 실패
 - **§4 attn_layer_idx 일반화**: 공격의 attn_layer_idx를 1,2,4,6,8,10으로 바꿔가며 반복 →
   recall@1이 항상 0.900~0.967로 안정적
+- **⚠️ 2026-09-17 추가 분석 — 탐지기는 LaVAN을 못 잡는다**: §1의 기존 npz(`01_layer_sweep_P16_raw.npz`,
+  재실행 없이 재계산만)로 **LaVAN vs Clean** AUROC를 레이어별로 처음 계산해봤다. 결과가
+  L=1에서 0.522, L=6 0.434, **L=12(지금 방어가 실제로 쓰는 레이어) 0.363** — 0.5(chance)보다
+  낮다. 즉 이 raw-attention 집중도 탐지기는 PatchFool(모든 레이어가 공격 패치에 집중하도록
+  만드는 공격)에만 통하고, **LaVAN은 원리적으로 이 신호로 안 잡힌다**(§1의 "AUROC 0.891
+  LaVAN 대비"는 "PatchFool을 LaVAN-or-clean 배경과 구분하는 능력"이지 "LaVAN 자체를 clean과
+  구분하는 능력"이 아니었음 — 이 둘을 혼동하기 쉬워서 명시해둠). 로드맵의 "아직 LaVAN
+  테스트 안 함" 항목이 "테스트해보니 이 메커니즘으로는 안 됨, 별도 신호 필요"로 확정됨.
 - **코드**: [`defense/01_detection_localization/`](defense/01_detection_localization/)
   (하위에 `01_signature/`, `02_localization/`, `03_evasion_robustness/`,
   `04_layeridx_generalization/`)
@@ -239,15 +253,39 @@ ViT_patchSwitch/
   "물리적으로 불가능" 결론을 정면으로 재검토해야 한다는 신호**다. 다만 이게 실제
   "국소 전환" 방어로 이어질지는 별도 판단 필요 — 아래 로드맵의 "2026-09-16 재개(REOPENED)"
   참고 (전체 재분류 대신 국소 전환을 쓰면 §8이 경고한 "정렬된 표현 = joint attack에
-  더 취약"과 같은 함정에 다시 빠질 위험이 있음).
+  더 취약"과 같은 함정에 다시 빠질 위험이 있음). **2026-09-17: §15는 이 결론을 낸 뒤
+  역할이 끝나서 [`archive/15_incompatibility_rigor_global_splice/`](archive/15_incompatibility_rigor_global_splice/)로
+  옮겼다** — 이 발견 자체("선형 변환 하나로 붙는다")를 실제 국소 전환 메커니즘으로 발전시키는
+  후속 작업은 완전히 새 방향이라 별도 섹션 **6번(§16, 아래)**으로 분리했다.
 - **코드**: [`defense/05_partial_share_exploration/`](defense/05_partial_share_exploration/)
-  (하위에 `11_activation_similarity/`, `12_partial_share_prototype/`, `13_ln_recalibration/`,
-  `15_incompatibility_rigor/`)
+  (하위에 `11_activation_similarity/`, `12_partial_share_prototype/`, `13_ln_recalibration/`)
 - **결과**: [`results/05_partial_share_exploration/`](results/05_partial_share_exploration/) —
   `11_activation_similarity/11_activation_similarity_viz.png`,
   `12_partial_share_prototype/12_hybrid_partial_share_collapse.png`,
-  `13_ln_recalibration/13_hybrid_ln_recalibration_viz.png`,
-  `15_incompatibility_rigor/15_incompatibility_rigor_viz.png` ⭐
+  `13_ln_recalibration/13_hybrid_ln_recalibration_viz.png`
+
+### 6. 국소 토큰 세분화 (§16, 진행 중) — 2026-09-17 시작
+
+§15가 "선형 변환 하나면 P8/P16 표현이 완전히 이어진다"를 **전역**(이미지 전체)으로 보여준
+직후 나온 후속 아이디어: 의심되는 **P16 패치 1~2개만** 국소적으로 2×2=4개의 P8 서브패치로
+쪼개서 그 자리에 끼워 넣고(196→199~200토큰), 나머지는 그대로 P16으로 처리하면 어떨까 —
+§6(전체 재분류)보다 훨씬 싸게 같은 효과를 낼 수 있을지도 모른다는 제안.
+
+**§16 — 1단계: 국소 교체가 원리적으로 되는가 (라우터는 일단 L=12 고정)**
+- **방법**: §15와 같은 닫힌 형태(최소제곱, 재학습 없음) 아핀 변환을, 이번엔 block-5 활성값이
+  아니라 **입력(patch_embed) 레벨**에서 P8 서브패치 → 대응 P16 패치로 피팅. §2와 동일한
+  L=12 raw attention top-1로 의심 패치를 찾은 뒤, 그 자리의 P16 임베딩을 어댑터로 보정한
+  P8 서브패치 4개로 in-place 교체하고, **P16의 12개 레이어를 전혀 안 건드리고 그대로** 통과.
+- **결과**: 클러스터에서 실행 중 — 완료되면 갱신 예정.
+- **코드**: [`defense/06_local_token_subdivision/16_local_swap_l12/`](defense/06_local_token_subdivision/16_local_swap_l12/)
+- **결과**: [`results/06_local_token_subdivision/16_local_swap_l12/`](results/06_local_token_subdivision/16_local_swap_l12/)
+
+**아직 다루지 않은 것 (다음 단계 후보)**:
+- 라우터를 L=6으로 당겨서(잔여 레이어 7~12로 "치유"할 시간을 줌) 정확도가 얼마나 떨어지는지
+  — L=6의 PF vs Clean AUROC가 0.639(L=12의 0.879보다 낮음)라 recall 손실이 예상됨
+- LaVAN용 보완 게이트 (위 §1 항목 참고, patch_embedding norm outlier 후보)
+- (§15와 동일 경고) 이 로컬 브릿지가 §8이 보여준 "정렬된 표현=joint attack에 취약" 함정에
+  빠지는지 adaptive attacker로 스트레스 테스트 필요
 
 ### §9. Protocol C — ViT_tradeoff로 이동
 면적 대신 토큰 개수를 P8/P16/**P32**에서 동일하게 고정하는 실험이라(P32 포함) 이 프로젝트
@@ -331,10 +369,10 @@ adapter가 있는 버전으로). 이건 아직 안 돌렸다.
 - joint attack의 15.8%(완전 무력화+미탐지)를 더 낮출 수 있는 탐지/전환 전략이 있는지 — §14에서
   명시적 회피 목표를 추가해도 안 낮아졌으니, 단순 임계값 튜닝보다 근본적인 변화(예: L=12 하나가
   아니라 여러 레이어 앙상블 탐지)가 필요할 수 있음
-- **아직 LaVAN에 대해서는 이 방어(탐지기+P8 폴백)를 한 번도 테스트 안 했다** — 지금까지
-  §1(탐지 가능성 비교 기준선)에서만 LaVAN을 썼고, §6~14의 방어 검증은 전부 PatchFool
-  기준이었음. 이 프로젝트가 LaVAN도 범위에 넣기로 한 만큼, LaVAN에 대한 탐지율/복원율을
-  추가로 확인할 필요 있음(다음 실험 후보)
+- **[해결(부분): LaVAN은 안 잡힌다는 게 확인됨]** §1 raw-attention 탐지기는 LaVAN vs Clean
+  AUROC가 모든 레이어에서 0.36~0.57(§1 항목 참고) — 재학습 없이 신호를 바꿀 수도 없으니,
+  LaVAN을 잡으려면 **별도의 보완 게이트**가 필요하다(후보: 패치별 patch_embed activation
+  norm outlier — 추가 forward pass 없이 이미 계산되는 값이라 값싸다). 아직 구현·검증 안 됨
 - (참고, 다른 최신 연구와 비교) [ViTGuard](https://arxiv.org/abs/2409.13828)가 이미
   attention+CLS token+MAE 재구성을 결합한 탐지기를 7개 기존 detector·9개 attack과 비교해
   검증한 바 있어, §1의 raw-attention 탐지기는 이것보다 단순한 버전이다. [PatchCleanser](https://www.usenix.org/conference/usenixsecurity22/presentation/xiang)

@@ -15,7 +15,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-RESULTS = HERE.replace('/defense/', '/results/', 1)
+RESULTS = os.path.join(HERE, 'results')
 
 RED, BLUE, GRAY, DARK = '#E94B3C', '#3B82F6', '#6B7280', '#1F2937'
 FS_TITLE, FS_SUB, FS_TICK, FS_VAL = 14, 11, 10, 11

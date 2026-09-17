@@ -6,10 +6,10 @@
 #SBATCH --qos=base_qos
 #SBATCH --gres=gpu:1
 #SBATCH --time=00:40:00
-#SBATCH --output=results/05_partial_share_exploration/15_incompatibility_rigor/15_incompatibility_rigor_run_%j.txt
+#SBATCH --output=archive/15_incompatibility_rigor_global_splice/results/15_incompatibility_rigor_run_%j.txt
 
 cd /home/jooyumm/ViT_robust/ViT_patchSwitch
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-python defense/05_partial_share_exploration/15_incompatibility_rigor/rigorous_incompatibility_test.py \
+python archive/15_incompatibility_rigor_global_splice/rigorous_incompatibility_test.py \
   --num_calib 100 --num_eval 50 --split_layer 5 --seed 42 --chunk 20

@@ -260,7 +260,7 @@ def main():
     print(f"  3) P16-A->P16-B (양성 대조군)           : {results['p16a_to_p16b_acc']:.3f}")
     print(f"  4) pooled+선형보정                      : {results['pooled_plus_linear_adapter_acc']:.3f}")
 
-    out_dir = os.path.dirname(os.path.abspath(__file__)).replace('/defense/', '/results/', 1)
+    out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
     os.makedirs(out_dir, exist_ok=True)
     np.savez(os.path.join(out_dir, f'15_incompatibility_rigor_n{args.num_eval}.npz'),
              split_layer=args.split_layer, num_calib=args.num_calib, num_eval=args.num_eval,
