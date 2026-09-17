@@ -38,7 +38,8 @@ P16으로 효율적으로 추론하다가, attention 기반 탐지로 공격이 
 | Joint attack (방어를 아는 공격자) | 나이브 전이 2.9% → joint attack 18.4% (6배 위험) |
 | 완전판 adaptive (탐지 회피 제약까지) | 18.4%로 동일, 최종 worst-case(무력화+미탐지) 15.8% |
 | ⭐ Diversity diagnostic | 같은 patch size·다른 학습 74.4% 뚫림 vs 다른 patch size 18.4% → **방어력의 원천은 "다른 patch size"** |
-| 배포 비용 | P8이 latency 2.7배, FLOPs 4.5배 (메모리는 거의 동일) |
+| 배포 비용 | P8이 latency 2.7배, FLOPs 4.5배 (메모리는 거의 동일); 기대비용은 π=10%에서 1.30배 |
+| 🧩 국소 토큰 세분화 (§16, 진행 중) | 의심 패치 1개만 P8 서브패치로 교체(196→200토큰, P8 전체 재실행 없음) → 복원율 84.6%, clean 오탐 비용 0% |
 
 ## 디렉토리 구조
 
@@ -276,9 +277,15 @@ ViT_patchSwitch/
   아니라 **입력(patch_embed) 레벨**에서 P8 서브패치 → 대응 P16 패치로 피팅. §2와 동일한
   L=12 raw attention top-1로 의심 패치를 찾은 뒤, 그 자리의 P16 임베딩을 어댑터로 보정한
   P8 서브패치 4개로 in-place 교체하고, **P16의 12개 레이어를 전혀 안 건드리고 그대로** 통과.
-- **결과**: 클러스터에서 실행 중 — 완료되면 갱신 예정.
+- **결과 (n=50, 2026-09-17 클러스터 실행, job 2275197)** ⭐: sanity max diff=0.0(배선 정상),
+  clean acc=84.0%, 방어 없는 adv acc=6.0%(공격 성공 39/50) → **국소 교체 복원율 84.6%(33/39)**,
+  **clean 오탐 비용 = 0.000p(전혀 없음)**. §6(전체 재분류, 복원율 97.1%)보다는 낮지만,
+  이쪽은 **P8을 통째로 안 돌리고 196→200토큰만 바꿔서** 얻은 수치라 훨씬 싸다 — 그리고
+  clean 이미지에 잘못 발동해도 정확도 손실이 전혀 없다는 게 특히 고무적(§6의 전체 재분류는
+  오탐 시에도 어쨌든 다른 모델로 재분류하니 이론적으로 약간의 부작용 여지가 있었음).
+  **1단계 결론: 국소 교체는 원리적으로 확실히 작동한다.**
 - **코드**: [`defense/06_local_token_subdivision/16_local_swap_l12/`](defense/06_local_token_subdivision/16_local_swap_l12/)
-- **결과**: [`results/06_local_token_subdivision/16_local_swap_l12/`](results/06_local_token_subdivision/16_local_swap_l12/)
+- **결과**: [`results/06_local_token_subdivision/16_local_swap_l12/16_local_swap_l12_viz.png`](results/06_local_token_subdivision/16_local_swap_l12/16_local_swap_l12_viz.png) ⭐
 
 **아직 다루지 않은 것 (다음 단계 후보)**:
 - 라우터를 L=6으로 당겨서(잔여 레이어 7~12로 "치유"할 시간을 줌) 정확도가 얼마나 떨어지는지

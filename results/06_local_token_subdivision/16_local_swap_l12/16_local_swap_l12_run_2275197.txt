@@ -1,0 +1,29 @@
+/home/jooyumm/.local/lib/python3.9/site-packages/torch/cuda/__init__.py:182: UserWarning: CUDA initialization: CUDA unknown error - this may be due to an incorrectly set up environment, e.g. changing env variable CUDA_VISIBLE_DEVICES after program start. Setting the available devices to be zero. (Triggered internally at /pytorch/c10/cuda/CUDAFunctions.cpp:109.)
+  return torch._C._cuda_getDeviceCount() > 0
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+/home/jooyumm/.local/lib/python3.9/site-packages/torch/utils/data/dataloader.py:666: UserWarning: 'pin_memory' argument is set as true but no accelerator is found, then device pinned memory won't be used.
+  warnings.warn(warn_msg)
+  Device: CPU
+  시도: vit_base_patch16_224.augreg2_in21k_ft_in1k
+  ✓ 로드 성공: vit_base_patch16_224.augreg2_in21k_ft_in1k  (P=16, tokens=196, params=86.6M)
+  시도: vit_base_patch8_224.augreg2_in21k_ft_in1k
+  ✓ 로드 성공: vit_base_patch8_224.augreg2_in21k_ft_in1k  (P=8, tokens=784, params=86.6M)
+  Dataset: ImageNet-1k val | samples=150 | classes=1000
+calibration=100, eval=50 (겹치지 않는 분리된 표본)
+어댑터 피팅: 78400쌍으로 768x768 아핀 변환 1회 계산 완료
+
+[0. sanity] full_forward_from_tokens vs model16 직접: max diff=0.00e+00 (0에 가까워야 wiring 정상)
+[참고] P16 clean acc=0.840
+
+[PatchFool 공격 생성 중...]
+[1. 방어 없음] adv acc=0.060  (공격 성공 39/50)
+[2. 국소 교체(공격 이미지)] 공격 성공 이미지 중 복원율=0.846 (33/39)  전체 acc=0.760
+[3. 국소 교체(clean, 오탐 시뮬레이션)] acc=0.840 (clean 기준 0.840 대비 +0.000p 손실)
+
+=== 요약 ===
+  0) sanity max diff              : 0.00e+00
+  1) 방어 없음 (adv acc)            : 0.060
+  2) 국소 교체 복원율 (핵심)         : 0.846
+  3) 국소 교체 clean 부작용 비용     : -0.000p
+
+Saved: /home/jooyumm/ViT_robust/ViT_patchSwitch/results/06_local_token_subdivision/16_local_swap_l12/16_local_swap_l12_n50.npz
