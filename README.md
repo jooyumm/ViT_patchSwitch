@@ -39,7 +39,7 @@ P16으로 효율적으로 추론하다가, attention 기반 탐지로 공격이 
 | 완전판 adaptive (탐지 회피 제약까지) | 18.4%로 동일, 최종 worst-case(무력화+미탐지) 15.8% |
 | ⭐ Diversity diagnostic | 같은 patch size·다른 학습 74.4% 뚫림 vs 다른 patch size 18.4% → **방어력의 원천은 "다른 patch size"** |
 | 배포 비용 | P8이 latency 2.7배, FLOPs 4.5배 (메모리는 거의 동일); 기대비용은 π=10%에서 1.30배 |
-| 🧩 국소 토큰 세분화 (§16+§17) | 의심 패치 1개만 P8 서브패치로 교체(196→200토큰, P8 전체 재실행 없음) → 복원율 84.6%, clean 오탐 비용 0%, **joint attack 완전 무력화 16.7%(§7의 18.4%와 근접, §8의 74.4% 함정 회피)** |
+| 🧩 국소 토큰 세분화 (§16+§17+§18) | 의심 패치 1개만 P8 서브패치로 교체(196→200토큰, P8 전체 재실행 없음) → 복원율 89.8%(n=108), clean 오탐 비용 ~0%, joint attack 완전 무력화 16.7%(§8의 74.4% 함정 회피), **완전판 adaptive evasion worst-case 11.9~21.4%(§14의 15.8%와 같은 급)** |
 
 ## 디렉토리 구조
 
@@ -69,13 +69,14 @@ ViT_patchSwitch/
     06_local_token_subdivision/     §16+§17 — 국소 토큰 세분화 (2026-09-17 시작)
       16_local_swap_l12/                §16 1단계
       17_local_swap_joint_attack/       §17 joint attack stress test
+      18_local_swap_adaptive_evasion_full/  §18 완전판 adaptive evasion
   results/                         결과물(그림 .png, 원자료 .npz, 로그 .txt)만 — 코드 없음
                                     defense/와 완전히 같은 GG_그룹/NN_실험/ 구조로 대응
     01_detection_localization/{01_signature,02_localization,03_evasion_robustness,04_layeridx_generalization}/
     02_system_validation/{06_final_validation,10_latency_memory}/
     03_adaptive_attack/{07_joint_attack,14_adaptive_evasion_full}/
     04_diversity_diagnostic/08_diversity_diagnostic/
-    06_local_token_subdivision/{16_local_swap_l12,17_local_swap_joint_attack}/
+    06_local_token_subdivision/{16_local_swap_l12,17_local_swap_joint_attack,18_local_swap_adaptive_evasion_full}/
 ```
 
 **2026-09-17: §11~13(부분 공유 탐색)과 archive/(06_p8_rescue_test, 15_incompatibility_rigor_global_splice)를
@@ -249,13 +250,15 @@ archive/15_incompatibility_rigor_global_splice)은 코드와 함께 npz/로그�
   아니라 **입력(patch_embed) 레벨**에서 P8 서브패치 → 대응 P16 패치로 피팅. §2와 동일한
   L=12 raw attention top-1로 의심 패치를 찾은 뒤, 그 자리의 P16 임베딩을 어댑터로 보정한
   P8 서브패치 4개로 in-place 교체하고, **P16의 12개 레이어를 전혀 안 건드리고 그대로** 통과.
-- **결과 (n=50, 2026-09-17 클러스터 실행, job 2275197)** ⭐: sanity max diff=0.0(배선 정상),
-  clean acc=84.0%, 방어 없는 adv acc=6.0%(공격 성공 39/50) → **국소 교체 복원율 84.6%(33/39)**,
-  **clean 오탐 비용 = 0.000p(전혀 없음)**. §6(전체 재분류, 복원율 97.1%)보다는 낮지만,
-  이쪽은 **P8을 통째로 안 돌리고 196→200토큰만 바꿔서** 얻은 수치라 훨씬 싸다 — 그리고
-  clean 이미지에 잘못 발동해도 정확도 손실이 전혀 없다는 게 특히 고무적(§6의 전체 재분류는
-  오탐 시에도 어쨌든 다른 모델로 재분류하니 이론적으로 약간의 부작용 여지가 있었음).
-  **1단계 결론: 국소 교체는 원리적으로 확실히 작동한다.**
+- **결과 (n=150, 2026-09-18 재확인, job 2276011; 최초 n=50 결과는 job 2275197, 대체됨)** ⭐:
+  sanity max diff=0.0(배선 정상), clean acc=84.0%, 방어 없는 adv acc=12.0%(공격 성공
+  108/150) → **국소 교체 복원율 89.8%(97/108, 95% CI(Wilson) [82.7%, 94.2%])**,
+  **clean 오탐 비용 = -0.7%p(사실상 0, 오히려 오차범위 내에서 소폭 상승)**. 처음
+  n=39(84.6%, 95% CI [73.3%, 95.9%])보다 표본을 3배 가까이 늘리면서 오히려 수치가
+  올라갔고 신뢰구간도 좁아졌다 — §6(전체 재분류, 복원율 97.1%)보다는 여전히 낮지만
+  격차가 처음 생각보다 작다. 이쪽은 **P8을 통째로 안 돌리고 196→200토큰만 바꿔서** 얻은
+  수치라 훨씬 싸다. **1단계 결론: 국소 교체는 원리적으로 확실히 작동하고, 표본을 늘려도
+  안 무너진다.**
 - **코드**: [`defense/06_local_token_subdivision/16_local_swap_l12/`](defense/06_local_token_subdivision/16_local_swap_l12/)
 - **결과**: [`results/06_local_token_subdivision/16_local_swap_l12/16_local_swap_l12_viz.png`](results/06_local_token_subdivision/16_local_swap_l12/16_local_swap_l12_viz.png) ⭐
 
@@ -280,13 +283,35 @@ archive/15_incompatibility_rigor_global_splice)은 코드와 함께 npz/로그�
 - **코드**: [`defense/06_local_token_subdivision/17_local_swap_joint_attack/`](defense/06_local_token_subdivision/17_local_swap_joint_attack/)
 - **결과**: [`results/06_local_token_subdivision/17_local_swap_joint_attack/17_local_swap_joint_attack_viz.png`](results/06_local_token_subdivision/17_local_swap_joint_attack/17_local_swap_joint_attack_viz.png) ⭐
 
+**§18 — §14급 완전판 adaptive evasion (탐지 회피 제약까지 포함)** ⭐ **공정한 비교를 위한 검증**
+- **왜 필요했나**: §17은 §7급(방어 구조는 알지만 탐지기 존재는 모르는 attacker)까지만
+  검증했다. §6(전체 재분류)은 §14에서 "탐지기 존재까지 아는 완전판 adaptive attacker"에도
+  worst-case 15.8%를 유지한다는 걸 이미 보였으니, 국소 브릿지도 같은 급의 검증을 거쳐야
+  논문에서 공정하게 비교할 수 있다.
+- **방법**: §14(`patch_fool_joint_evasive.py`)와 완전히 같은 구조(STRAP-ViT류 제약 최적화 —
+  CE(P16)+CE(local-swap 경로)를 키우면서 동시에 L=12 top-4 mass를 target_bound 아래로
+  묶어두는 페널티, lambda 자동 증가)를 쓰되, 두 번째 타깃만 model8 전체 대신 §16/§17의
+  local-swap 경로로 교체. §14와 동일하게 target_bound 두 가지(clean_max=0.6728,
+  calibrated_threshold=0.5567)를 다 시험, seed=123/n=50으로 §7/§8/§17과 직접 비교 가능.
+- **결과 (n=50, seed=123, 2026-09-18, job 2276027)** ⭐⭐: clean_max 기준 완전
+  무력화+미탐지 11.9%(5/42, 95% CI [5.2%, 25.0%]), calibrated_threshold 기준 21.4%(9/42,
+  95% CI [11.7%, 35.9%]) — **§17의 회피 없는 16.7%(95% CI [8.3%, 30.6%])와 신뢰구간이
+  전부 겹친다**(통계적으로 유의한 차이 없음), 그리고 **§14(전체 재분류판)의 worst-case
+  15.8%와도 같은 범위(11.9~21.4%)**. §14가 "탐지 회피 제약을 걸어도 결과가 거의 안
+  바뀐다"고 확인했던 것과 같은 패턴이 국소 브릿지에서도 재현됐다. **결론: 국소 브릿지의
+  adaptive-attack 강건성은 전체 재분류판과 같은 급(같은 자릿수, 겹치는 신뢰구간)이다 —
+  더 취약하다는 증거 없음.**
+- **참고 (원인 미규명 한계)**: 탐지기 flag율이 §7(20%)·§14보다 §17/§18(4~6%)에서 확연히
+  낮다. 원인 분석은 이번 스코프 밖 — 논문에는 "국소 브릿지 경로에서 탐지기 flag율이 왜
+  낮아지는지는 확인하지 못한 한계"로 정직하게 적을 것(우선순위상 뒤로 미룸, 2026-09-18 결정).
+- **코드**: [`defense/06_local_token_subdivision/18_local_swap_adaptive_evasion_full/`](defense/06_local_token_subdivision/18_local_swap_adaptive_evasion_full/)
+- **결과**: [`results/06_local_token_subdivision/18_local_swap_adaptive_evasion_full/18_local_swap_adaptive_evasion_full_viz.png`](results/06_local_token_subdivision/18_local_swap_adaptive_evasion_full/18_local_swap_adaptive_evasion_full_viz.png) ⭐
+
 **아직 다루지 않은 것 (다음 단계 후보)**:
 - 라우터를 L=6으로 당겨서(잔여 레이어 7~12로 "치유"할 시간을 줌) 정확도가 얼마나 떨어지는지
   — L=6의 PF vs Clean AUROC가 0.639(L=12의 0.879보다 낮음)라 recall 손실이 예상됨
 - LaVAN용 보완 게이트 (위 §1 항목 참고, patch_embedding norm outlier 후보)
-- §14급 완전판 adaptive attack(탐지 회피 제약까지 포함) — §17은 §7급(나이브 joint)까지만 검증함
-- §16의 84.6% 복원율(n=39, 95% CI [73.3%, 95.9%])은 n이 작아 신뢰구간이 넓음 — 더 큰 n으로
-  재확인하면 논문에 쓸 수치가 더 단단해짐
+- 탐지기 flag율 4~6% vs §7/§14의 20% 차이 — 논문엔 한계로만 명시, 원인 분석은 보류
 
 ### §9. Protocol C — ViT_tradeoff로 이동
 면적 대신 토큰 개수를 P8/P16/**P32**에서 동일하게 고정하는 실험이라(P32 포함) 이 프로젝트

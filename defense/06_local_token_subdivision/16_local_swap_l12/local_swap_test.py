@@ -39,8 +39,13 @@ P8→풀링→P16후반부) 테스트해서 "선형 변환 하나로 완전히 �
 
 주의: src/models.py, src/attacks/patch_fool.py는 import만(수정 없음). 이 파일 지우면 원상복구.
 
+2026-09-17 갱신: 처음 실행(n_eval=50, n_attacked=39)의 복원율 84.6%는 95% CI가
+[73.3%, 95.9%]로 넓어서, --chunk 인자를 추가해 n_eval=150(§7/§8처럼 20개씩 나눠 처리)으로
+재확인한다 — 큰 배치를 한 번에 돌리다 §17에서 시간이 오래 걸렸던 것을 여기서는 피하려는
+목적도 있음.
+
 사용법:
-  python local_swap_test.py --num_calib 50 --num_eval 30 --seed 42
+  python local_swap_test.py --num_calib 100 --num_eval 150 --seed 42 --chunk 20
 """
 import argparse
 import os
@@ -162,6 +167,7 @@ def main():
     parser.add_argument('--num_eval', type=int, default=30, help='공격/복원 평가용 held-out')
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--attn_layer_idx', type=int, default=4, help='PatchFool 공격 타겟 레이어')
+    parser.add_argument('--chunk', type=int, default=20, help='공격 생성/forward를 이 크기로 나눠 처리')
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
@@ -211,22 +217,32 @@ def main():
     acc_clean = eval_acc(pred16_clean, eval_labels)
     print(f"[참고] P16 clean acc={acc_clean:.3f}")
 
-    # ── 1) PatchFool 공격, 방어 없는 P16 정확도 ──
-    print("\n[PatchFool 공격 생성 중...]")
-    adv_images, _ = patch_fool_attack(
-        model16, eval_images, eval_labels, device, patch_size_model=16,
-        attack_mode='CE_loss', train_attack_iters=250, num_patch=1, patch_select='Attn',
-        attn_layer_idx=args.attn_layer_idx)
+    # ── 1) PatchFool 공격, 방어 없는 P16 정확도 (chunk 단위로 나눠 생성) ──
+    print(f"\n[PatchFool 공격 생성 중... ({len(eval_labels)}개, {args.chunk}개씩)]")
+    adv_chunks = []
+    for s in range(0, len(eval_labels), args.chunk):
+        e = min(s + args.chunk, len(eval_labels))
+        print(f"  [{s}:{e}] 처리 중...")
+        c, _ = patch_fool_attack(
+            model16, eval_images[s:e], eval_labels[s:e], device, patch_size_model=16,
+            attack_mode='CE_loss', train_attack_iters=250, num_patch=1, patch_select='Attn',
+            attn_layer_idx=args.attn_layer_idx)
+        adv_chunks.append(c)
+    adv_images = torch.cat(adv_chunks, dim=0)
     pred16_adv = model16(adv_images).argmax(dim=1)
     acc_adv = eval_acc(pred16_adv, eval_labels)
     attack_succeeded = (pred16_clean == eval_labels) & (pred16_adv != eval_labels)
     n_attacked = int(attack_succeeded.sum().item())
     print(f"[1. 방어 없음] adv acc={acc_adv:.3f}  (공격 성공 {n_attacked}/{len(eval_labels)})")
 
-    # ── 2) 핵심: 국소 교체로 복원되는가 (공격 성공한 이미지만) ──
-    flag_idx_adv = localize_top1(model16, adv_images, detect_layer=12)
-    seq_adv_swap = build_local_swap_batch(model16, model8, adapter, adv_images, flag_idx_adv, ppl16=ppl16)
-    pred_local_swap_adv = full_forward_from_tokens(model16, seq_adv_swap).argmax(dim=1)
+    # ── 2) 핵심: 국소 교체로 복원되는가 (공격 성공한 이미지만, chunk 단위로 처리) ──
+    pred_local_swap_adv_chunks = []
+    for s in range(0, len(eval_labels), args.chunk):
+        e = min(s + args.chunk, len(eval_labels))
+        flag_idx_adv = localize_top1(model16, adv_images[s:e], detect_layer=12)
+        seq_adv_swap = build_local_swap_batch(model16, model8, adapter, adv_images[s:e], flag_idx_adv, ppl16=ppl16)
+        pred_local_swap_adv_chunks.append(full_forward_from_tokens(model16, seq_adv_swap).argmax(dim=1))
+    pred_local_swap_adv = torch.cat(pred_local_swap_adv_chunks, dim=0)
     if n_attacked > 0:
         recovered = attack_succeeded & (pred_local_swap_adv == eval_labels)
         recovery_rate = recovered.sum().item() / n_attacked
@@ -238,9 +254,13 @@ def main():
           f"전체 acc={acc_local_swap_adv_all:.3f}")
 
     # ── 3) 부작용 비용: clean 이미지에 (불필요하게) 같은 교체를 적용하면 정확도가 얼마나 깎이나 ──
-    flag_idx_clean = localize_top1(model16, eval_images, detect_layer=12)
-    seq_clean_swap = build_local_swap_batch(model16, model8, adapter, eval_images, flag_idx_clean, ppl16=ppl16)
-    pred_local_swap_clean = full_forward_from_tokens(model16, seq_clean_swap).argmax(dim=1)
+    pred_local_swap_clean_chunks = []
+    for s in range(0, len(eval_labels), args.chunk):
+        e = min(s + args.chunk, len(eval_labels))
+        flag_idx_clean = localize_top1(model16, eval_images[s:e], detect_layer=12)
+        seq_clean_swap = build_local_swap_batch(model16, model8, adapter, eval_images[s:e], flag_idx_clean, ppl16=ppl16)
+        pred_local_swap_clean_chunks.append(full_forward_from_tokens(model16, seq_clean_swap).argmax(dim=1))
+    pred_local_swap_clean = torch.cat(pred_local_swap_clean_chunks, dim=0)
     acc_local_swap_clean = eval_acc(pred_local_swap_clean, eval_labels)
     print(f"[3. 국소 교체(clean, 오탐 시뮬레이션)] acc={acc_local_swap_clean:.3f} "
           f"(clean 기준 {acc_clean:.3f} 대비 {acc_clean - acc_local_swap_clean:+.3f}p 손실)")

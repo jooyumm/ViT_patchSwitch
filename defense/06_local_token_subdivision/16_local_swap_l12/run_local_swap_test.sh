@@ -5,11 +5,11 @@
 #SBATCH --partition=suma_rtx4090
 #SBATCH --qos=base_qos
 #SBATCH --gres=gpu:1
-#SBATCH --time=00:40:00
+#SBATCH --time=02:00:00
 #SBATCH --output=results/06_local_token_subdivision/16_local_swap_l12/16_local_swap_l12_run_%j.txt
 
 cd /home/jooyumm/ViT_robust/ViT_patchSwitch
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 python defense/06_local_token_subdivision/16_local_swap_l12/local_swap_test.py \
-  --num_calib 100 --num_eval 50 --seed 42 --attn_layer_idx 4
+  --num_calib 100 --num_eval 150 --seed 42 --attn_layer_idx 4 --chunk 20

@@ -27,9 +27,10 @@ def main():
     if args.n is not None:
         npz_path = os.path.join(RESULTS, f'16_local_swap_l12_n{args.n}.npz')
     else:
-        candidates = sorted(glob.glob(os.path.join(RESULTS, '16_local_swap_l12_n*.npz')))
+        candidates = glob.glob(os.path.join(RESULTS, '16_local_swap_l12_n*.npz'))
         assert candidates, f"결과 npz를 못 찾음: {RESULTS}"
-        npz_path = candidates[-1]
+        # 파일명 문자열 정렬은 n50 > n150으로 잘못 판단할 수 있어서(자릿수 다름) mtime으로 고름
+        npz_path = max(candidates, key=os.path.getmtime)
     d = np.load(npz_path)
 
     fig, ax = plt.subplots(figsize=(9, 5.5))

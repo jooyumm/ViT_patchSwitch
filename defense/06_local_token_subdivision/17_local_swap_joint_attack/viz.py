@@ -32,9 +32,9 @@ def main():
     if args.n is not None:
         npz_path = os.path.join(RESULTS, f'17_local_swap_joint_attack_n{args.n}.npz')
     else:
-        candidates = sorted(glob.glob(os.path.join(RESULTS, '17_local_swap_joint_attack_n*.npz')))
+        candidates = glob.glob(os.path.join(RESULTS, '17_local_swap_joint_attack_n*.npz'))
         assert candidates, f"결과 npz를 못 찾음: {RESULTS}"
-        npz_path = candidates[-1]
+        npz_path = max(candidates, key=os.path.getmtime)
     d = np.load(npz_path)
 
     fig, ax = plt.subplots(figsize=(9, 6))
