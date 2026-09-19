@@ -6,10 +6,16 @@
 #SBATCH --qos=base_qos
 #SBATCH --gres=gpu:1
 #SBATCH --time=02:30:00
+#SBATCH --exclude=cs-gpu-01
 #SBATCH --output=results/system_comparison/system_comparison_run_%j.txt
 
 cd /home/jooyumm/ViT_robust/ViT_patchSwitch
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export PYTHONUNBUFFERED=1
 
 python experiments/system_comparison/system_comparison_test.py \
   --num_samples 250 --cal_frac 0.4 --seed 42 --attn_layer_idx 4 --chunk 20
+
+if ! python -c "import torch; assert torch.cuda.is_available()" 2>/dev/null; then
+  echo "[경고] 이 노드에서도 CUDA를 못 씀 — cs-gpu-01 말고 다른 노드도 문제 있을 수 있음"
+fi

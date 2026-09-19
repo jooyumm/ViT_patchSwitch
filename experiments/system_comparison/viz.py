@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 HERE = os.path.dirname(os.path.abspath(__file__))
 RESULTS = HERE.replace('/experiments/', '/results/', 1)
 
-ALL_COLOR, LOCAL_COLOR = '#3B82F6', '#E94B3C'
+ALL_COLOR, LOCAL_COLOR = '#E94B3C', '#3B82F6'  # cost_comparison/paper_summary와 동일 배색
 
 
 def main():

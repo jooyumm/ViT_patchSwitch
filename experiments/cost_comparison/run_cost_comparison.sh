@@ -7,10 +7,12 @@
 #SBATCH --qos=base_qos
 #SBATCH --gres=gpu:1
 #SBATCH --time=00:30:00
+#SBATCH --exclude=cs-gpu-01
 #SBATCH --output=results/cost_comparison/cost_comparison_run_%j.txt
 
 cd /home/jooyumm/ViT_robust/ViT_patchSwitch
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export PYTHONUNBUFFERED=1
 
 python experiments/cost_comparison/cost_comparison_test.py \
   --n_warmup 20 --n_iters 100 --calib_seed 42 --num_calib 100
