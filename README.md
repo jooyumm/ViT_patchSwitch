@@ -20,36 +20,41 @@ P16의 12개 transformer block은 전혀 건드리지 않고 그대로 재사용
 돌리는 "전체 전환(all switch)"은 그 자체가 목표가 아니라, **local switch가 얼마나 저렴하면서도
 동급의 강건성을 내는지 보여줄 비교 기준선**으로 검증했다. all switch는 훨씬 단순한 설계라
 (별도 모델을 통째로 다시 돌릴 뿐, 두 표현을 이어붙일 정렬 메커니즘이 필요 없음) 먼저 완결적으로
-검증해 "naive하지만 확실히 작동하는 상한선" 역할을 하도록 했고, 그다음 local switch가 같은
-3단계 검증(복원율 → naive joint attack → 완전판 adaptive evasion)을 거쳐 이 기준선과 통계적으로
-구분되지 않는 강건성을 낸다는 것을 보였다.
+검증해 "naive하지만 확실히 작동하는 상한선" 역할을 하도록 했고, local switch는 **같은 이미지·
+같은 탐지 결과**로 그 기준선과 직접 맞대어 검증했다(아래 "System comparison" 참고).
 
-| | **Local Switch** (`defense/local_switch/`) — 목표 | **All Switch** (`defense/all_switch/`) — 비교 기준선 |
+| | **Local Switch** (`defense/local_switch.py`) — 목표 | **All Switch** (`defense/all_switch.py`) — 비교 기준선 |
 |---|---|---|
 | 전환 방식 | 의심되는 **패치 1개만** 4개의 P8 서브패치로 국소 교체 (196→200토큰), 나머지 195토큰·12개 block은 P16 그대로 재사용 | 의심되면 이미지 **전체**를 P8로 다시 분류 |
-| 비용 | 사실상 추가 비용 없음 (패치 1개만 추가) | latency 2.7배, FLOPs 4.5배 (P8 전체 재실행) |
 | 정렬 메커니즘 | closed-form 최소제곱 아핀 변환(768×768+bias)으로 patch_embed 레벨에서 P8 서브패치를 P16 좌표계에 투영 | 없음 (완전히 별도 모델을 그대로 돌림) |
-
-두 메커니즘 모두 동일한 3단계 검증을 거친다: **(1) 복원율 → (2) naive joint attack →
-(3) 탐지 회피까지 포함한 완전판 adaptive evasion**. Local switch는 all switch보다 훨씬 저렴하면서도
-이 세 단계 전부에서 통계적으로 구분되지 않는 결과를 보였다 — 상세 서사와 논문 반영용 문구는
-[`NARRATIVE_16_17_18.md`](NARRATIVE_16_17_18.md) 참고.
 
 ## 핵심 성능 요약
 
-| 지표 | Local Switch (목표) | All Switch (비교 기준선) |
-|---|---|---|
-| 복원율 | **89.8%** (97/108, n=150 eval, 95% CI [82.7%, 94.2%]) | **97.1%** (n=200, calibration/eval 분리) |
-| clean 정확도 손실 | ~0% (오차범위 내) | 없음 |
-| 시스템 정확도 (naive attacker 기준) | — (동일 탐지기 재사용, §6 수치 그대로 적용됨) | 13.0%→64.0% (5배) |
-| naive joint attack 완전 무력화 | 16.7% (7/42, [8.3%, 30.6%]) | 18.4% (7/38, [9.2%, 33.4%]) |
-| **완전판 adaptive evasion worst-case** | **21.4%** (9/42, [11.7%, 35.9%], calibrated_threshold 기준; clean_max 기준 참고치 11.9%) | **15.8%** (6/38, [7.4%, 30.4%]) |
-| 배포 비용 | 사실상 무시 가능 | latency 2.7배 / FLOPs 4.5배; 기대비용 π=10%에서 1.30배 |
+**system_comparison** (n=250, seed=42, calibration 100/eval 150 분리 — [아래](#system-comparison-두-방어를-같은-이미지같은-탐지-결과로) 참고)에서
+**같은 113개 공격-성공 이미지, 같은 탐지 결과(FPR 13.3%/recall 72.7%)**로 두 방어를 직접 비교:
 
-모든 adaptive evasion worst-case 신뢰구간이 서로 겹친다 — **local switch가 all switch보다
-통계적으로 더 취약하다는 근거는 없다.** 즉 local switch는 all switch 대비 배포 비용을 거의
-없애면서도 동급의 최악-경우 강건성을 낸다. 두 메커니즘이 공유하는 탐지·위치특정 인프라(raw
-attention L=12) 성능: AUROC 0.879(clean 대비)~0.891(LaVAN 대비), 위치특정 recall@1 96.7%.
+| 지표 | Local Switch | All Switch |
+|---|---|---|
+| 복원율 (같은 113개 공격 성공 이미지 기준) | 89.4% (101/113, 95% CI [82.4%, 93.8%]) | 96.5% (109/113, 95% CI [91.3%, 98.6%]) |
+| 시스템 정확도 (eval 150개 전체, 공격 상황) | **65.3%** | **66.0%** |
+| clean 오탐 비용 (P16 clean 84.0% 대비) | +0.7%p (84.7%) | +4.0%p (88.0%, P8의 원래 더 높은 clean acc가 반영됨) |
+| 파이프라인 추가 비용 (escalate 시, batch=1) | **2.58ms** | 6.91ms |
+| 총 latency (baseline 3.73ms 포함) | 6.31ms (1.69x) | 10.64ms (2.85x) |
+
+**naive/adaptive 공격 강건성** (§7/§8/§14/§17/§18, 아래 각 섹션 참고, seed=123/n=50로 서로 매칭됨):
+
+| 지표 | Local Switch | All Switch |
+|---|---|---|
+| naive joint attack 완전 무력화 | 16.7% [8.3%, 30.6%] | 18.4% [9.2%, 33.4%] |
+| **완전판 adaptive evasion worst-case** | **21.4%** [11.7%, 35.9%] (calibrated_threshold 기준; clean_max 기준 참고치 11.9%) | **15.8%** [7.4%, 30.4%] |
+
+**결론**: 시스템 정확도(65.3% vs 66.0%)는 사실상 동률이고, naive/adaptive 공격 강건성도 모든
+신뢰구간이 겹친다 — **local switch가 all switch보다 통계적으로 더 취약하다는 근거는 없다.**
+그러면서도 escalate 시 추가 비용은 **2.7배 저렴하다**(2.58ms vs 6.91ms). 두 방어가 공유하는
+탐지·위치특정(raw attention L=12) 성능: AUROC 0.879(clean 대비)~0.891(LaVAN 대비), 위치특정
+recall@1 96.7%. 논문/PPT에 바로 쓸 수 있는 합쳐진 표·그림은
+[`results/paper_summary/paper_summary_table.md`](results/paper_summary/paper_summary_table.md),
+[`results/paper_summary/paper_summary_headline.png`](results/paper_summary/paper_summary_headline.png) 참고.
 
 ## 디렉토리 구조
 
@@ -60,51 +65,65 @@ ViT_patchSwitch/
     dataset.py                         원본과 동일
     attacks/{lavan.py, patch_fool.py}  원본과 동일 (pgd.py 없음 — 범위 밖)
 
-  defense/                          실험 코드 (.py, .sh) — 결과물 없음
-    local_switch/                     목표: 국소 전환
-      recovery_test/                    §16 국소 교체 복원율
+  defense/                          방어 메커니즘 구현 3개뿐 — 평가 루프·결과물 없음
+    detector.py                       공유 탐지·위치특정 (raw attention L=12, top4_mass, top-1 argmax)
+    local_switch.py                   AffineAdapter + 국소 교체 + P16 재통과 (미분 가능 버전 포함)
+    all_switch.py                     apply_all_switch(model8, images) — P8 전체 재분류 한 줄
+
+  experiments/                      모든 평가/공격/비교 실험 — defense/+src/를 import해서 씀
+    system_comparison/                신규 — 두 방어를 같은 이미지·같은 탐지 결과로 직접 비교
+    cost_comparison/                  신규 — 두 방어의 실제 파이프라인 비용(latency/FLOPs) 비교
+    paper_summary/                    신규 — 위 둘 + 기존 §7/§14/§17/§18을 합친 표·그림 (GPU 실험 아님)
+    local_switch/
       joint_attack/                     §17 joint attack stress test (§8 정렬 트랩 회피 검증)
       adaptive_evasion_full/            §18 완전판 adaptive evasion (all switch와 동급 검증)
-    all_switch/                       비교 기준선: 전체 전환
-      final_validation/                 §6  최종 시스템 검증 (FPR/recall/복원율)
-      latency_memory/                   §10 배포 비용 (latency/FLOPs/memory)
-      expected_cost_analysis.py         §6+§10 결합 기대비용(π) 분석
+    all_switch/
       joint_attack/                     §7  naive joint attack
       adaptive_evasion_full/            §14 완전판 adaptive evasion (탐지 회피 제약 포함)
-    experiments/                      두 메커니즘이 공유하는 인프라 + 보조 진단
-      detection_localization/
-        signature/                      §1  탐지 시그니처 + 레이어 스윕
-        localization/                    §2  위치 특정
-        evasion_robustness/               §3  탐지기 회피 시도 견고성
-        layeridx_generalization/           §4  attn_layer_idx 일반화
-      diversity_diagnostic/             §8  patch size 차이 vs "다른 모델" (정렬 트랩 진단)
+    detection_localization/
+      signature/                        §1  탐지 시그니처 + 레이어 스윕
+      localization/                      §2  위치 특정
+      evasion_robustness/                 §3  탐지기 회피 시도 견고성
+      layeridx_generalization/             §4  attn_layer_idx 일반화
+    diversity_diagnostic/             §8  patch size 차이 vs "다른 모델" (정렬 트랩 진단)
 
   results/                           결과물(그림 .png, 원자료 .npz, 로그 .txt)만 — 코드 없음
-                                      defense/와 완전히 같은 구조로 대응
+                                      experiments/와 완전히 같은 구조로 대응 (defense/는 결과물 없음)
 ```
 
-`local_switch/`, `all_switch/`, `experiments/`는 `defense/`(및 `results/`) 바로 아래의 서로
-독립된 형제 폴더다 — 한쪽이 다른 쪽 안에 중첩돼 있지 않고, 서로 파일을 공유하지도 않는다(각
-폴더가 필요한 공격/평가 로직을 자기 안에 복사해서 가짐 — 아래 참고).
+`defense/`는 이제 순수 라이브러리다 — 세 파일 다 `import defense.detector`/`defense.local_switch`/
+`defense.all_switch`로 가져다 쓰기 위한 것이고, 실행해서 뭔가 저장하는 스크립트가 아니다.
+새로 짜는 실험(`system_comparison`, `cost_comparison`)은 이 모듈들을 직접 import해서 쓴다.
+이미 검증이 끝난 기존 실험(`local_switch/joint_attack` 등)은 재검증 리스크를 피하려고 자기
+안에 복사된 인라인 코드를 그대로 유지했다 — 공유 모듈로의 마이그레이션은 하지 않았다(둘 다
+`defense.detector`의 원본에서 나온, 결과가 완전히 동일함을 직접 검증한 코드다).
 
-`defense/.../*.py`가 결과를 저장할 때는 자기 파일 경로에서 `/defense/`를 `/results/`로 바꾼
-경로에 쓴다(`HERE.replace('/defense/', '/results/', 1)`을 ROOT 탐색 기준으로 확장한 형태).
-그래서 폴더를 옮기거나 이름을 바꿔도 결과 경로가 항상 자동으로 따라온다. 여러 실험이 같은 공격
-로직(예: joint attack)을 쓸 때는 모듈을 폴더마다 **복사**해서 넣었다 — 폴더 간 import를 없애서
-폴더 하나만 통째로 옮기거나 지워도 다른 실험이 안 깨지게 하기 위함이다. 유일한 예외는 몇몇
-`viz.py`가 다른 실험의 확정된 숫자를 (npz를 다시 열지 않고) 하드코딩된 상수로 인용하는 것
-(예: `local_switch/*/`의 스크립트들이 `all_switch/`의 §6/§7/§14 수치를 참고용 상수로 가짐).
+`experiments/.../*.py`가 결과를 저장할 때는 자기 파일 경로에서 `/experiments/`를 `/results/`로
+바꾼 경로에 쓴다(`HERE.replace('/experiments/', '/results/', 1)`을 ROOT 탐색 기준으로 확장한
+형태). 그래서 폴더를 옮기거나 이름을 바꿔도 결과 경로가 항상 자동으로 따라온다. 여러 실험이
+같은 공격 로직(예: joint attack)을 쓸 때는 모듈을 폴더마다 **복사**해서 넣었다 — 폴더 간
+import를 없애서 폴더 하나만 통째로 옮기거나 지워도 다른 실험이 안 깨지게 하기 위함이다(단,
+`system_comparison`/`cost_comparison`은 예외적으로 `defense/`의 공유 모듈을 import한다 —
+`defense/`는 애초에 공유되려고 만든 것이라 이 규칙의 대상이 아니다). 몇몇 `viz.py`는 다른
+실험의 확정된 숫자를 (npz를 다시 열지 않고) 하드코딩된 상수로 인용한다(예: `local_switch/`의
+스크립트들이 `all_switch/`의 §7/§14 수치를 참고용 상수로 가짐).
 
-**결과 파일 이름은 `NN_설명.확장자`** 형식을 유지한다(예: `01_signature_P16.png`,
-`16_local_swap_l12_viz.png`) — `NN`은 최초 설계 당시의 실험 번호이고, 이 문서와 코드 전체에서
-그 번호로 실험을 지칭한다.
+**결과 파일 이름은 `NN_설명.확장자`** 형식을 유지한다(예: `01_signature_P16.png`) — `NN`은
+최초 설계 당시의 실험 번호이고, 이 문서와 코드 전체에서 그 번호로 실험을 지칭한다. `system_
+comparison`/`cost_comparison`/`paper_summary`는 번호 체계 밖의 신규 실험이라 번호가 없다.
 
-**2026-09-19 재구성**: `full_reclassification/`→`all_switch/`, `local_token_subdivision/`→
+**2026-09-19/20 재구성**: `full_reclassification/`→`all_switch/`, `local_token_subdivision/`→
 `local_switch/`로 폴더명을 바꿔 "local switch가 목표, all switch는 비교 기준선"이라는 서사를
-이름 자체에 반영했다(`git mv`로 진행해 히스토리 보존). 두 폴더는 여전히 `experiments/`와
-나란히 `defense/`/`results/` 바로 아래의 형제 폴더다. 이름을 참조하던 `.sh`(SBATCH 경로, python
-호출 경로)와 `viz.py` 독스트링의 경로 문구도 전부 새 이름으로 갱신하고, 각 스크립트를 직접
-실행해 결과가 올바른 `results/local_switch/`·`results/all_switch/` 경로에 저장되는지 확인했다.
+이름에 반영했다. 그다음 `defense/`를 순수 방어 메커니즘 3개(`detector.py`/`all_switch.py`/
+`local_switch.py`)만 남긴 라이브러리로 정리하고, 나머지 모든 평가 스크립트를 `experiments/`로
+옮겨 `defense/`·`experiments/`·`results/`·`src/`가 최상위에서 나란한 형제가 되도록 재구성했다
+(`git mv`로 진행해 히스토리 보존). 이 과정에서 두 가지가 드러났다: (1) 기존 §6(all_switch
+최종검증)과 §16(local_switch 복원율)은 seed=42를 공유하긴 했지만 calibration/eval 경계가 서로
+달라 **완전히 같은 이미지·같은 탐지 결과로 비교된 게 아니었다** (2) **local_switch는 비용을
+측정한 적이 한 번도 없었다**(§10/expected_cost_analysis.py는 all_switch 전용). §6/§16/§10/
+expected_cost_analysis.py는 제거했고(`git rm`, 히스토리에서 복구 가능), 그 자리를
+`system_comparison`/`cost_comparison`이 대체한다 — 이번엔 두 방어가 **정확히 같은 calibration,
+같은 eval 이미지, 같은 탐지 판정**을 쓴다.
 
 ## npz / 로그 정리 정책
 
@@ -113,24 +132,63 @@ ViT_patchSwitch/
 
 **`nohup_*.txt` 실행 로그는 대부분 삭제했다.** 숫자가 이미 README·npz·그림에 다 들어있어서
 로그 자체는 중복이었던 것들은 지웠다. 예외 1개는 **그 실행 로그가 유일한 원자료라 보존**:
-- `results/experiments/diversity_diagnostic/08_diversity_original_seed456_run_2143709.txt`
+- `results/diversity_diagnostic/08_diversity_original_seed456_run_2143709.txt`
   — §8의 원래 seed=456 결과(52.3%)의 `.npz`가 나중에 seed=123 재실행 때 같은 파일명으로
   덮어써져서, 이 로그만 그 수치의 유일한 증거로 남음(아래 "샘플링 감사" 참고)
 
-## Local Switch (`defense/local_switch/`) — 목표
+## System comparison — 두 방어를 같은 이미지·같은 탐지 결과로 (`experiments/system_comparison/`)
 
-의심되는 P16 패치 1개만 4개의 P8 서브패치로 국소 교체한다. closed-form(최소제곱, 재학습 없음)
-아핀 변환으로 patch_embed 레벨에서 P8 서브패치를 P16 좌표계로 투영하고, 기존 L=12 top-1
-탐지기가 지목한 자리에 in-place로 끼워 넣는다. P16의 12개 transformer block은 전혀 수정하지
-않는다.
+두 방어를 공정하게 비교하려면 같은 calibration, 같은 eval 이미지, 같은 탐지 판정이 필요하다는
+문제의식에서 만든 실험(위 "재구성" 참고). 단일 스크립트가:
 
-All switch(아래)가 거친 것과 **동일한 3단계 검증**을 거쳤다 — 상세 서사, 왜 이 세 단계가 각각
-필요했는지, 논문/PPT용 문구는 [`NARRATIVE_16_17_18.md`](NARRATIVE_16_17_18.md)에 정리돼 있다.
-요약:
+1. n=250(seed=42)을 calibration 100 / eval 150으로 분리, **같은 calibration 풀**에서 탐지
+   임계값(Youden's J)과 local_switch의 아핀 어댑터를 각각 피팅.
+2. eval 150개 전체에 PatchFool 공격을 걸고, 공유 탐지기로 **한 번만** flag 여부를 계산 — 이
+   판정을 all_switch와 local_switch가 그대로 공유해서 쓴다.
+3. (a) 무조건 복원율(공격 성공 113개에 방어를 적용했을 때 flag 여부와 무관하게 복원되는 비율,
+   메커니즘 자체의 능력) (b) 시스템 정확도(flag된 것만 방어 적용, 나머지는 P16 그대로 — 실배포
+   조건) (c) clean 오탐 비용(clean 이미지에 무조건 방어를 적용했을 때의 정확도 변화)을 두
+   방어에 대해 동일한 방식으로 계산.
 
-- **§16 복원율** (`recovery_test/`, n=150 eval): clean acc 84.0%, 방어 없는 adv acc 12.0%
-  → **복원율 89.8%**(97/108, 95% CI [82.7%, 94.2%]), clean 표본에 대한 부수 비용은 오차범위
-  내(84.0%→84.7%).
+**결과** (job 2292052, RTX 4090): threshold=0.5116, FPR=13.3%(20/150, [8.8%,19.7%]), recall=72.7%
+(109/150, [65.0%,79.2%]).
+
+- **(a) 복원율** (같은 113개 공격-성공 이미지): all_switch **96.5%**(109/113, [91.3%,98.6%]),
+  local_switch **89.4%**(101/113, [82.4%,93.8%]) — 신뢰구간이 겹친다.
+- **(b) 시스템 정확도** (eval 150개, 공격 상황): P16 단독 8.7% → all_switch **66.0%**,
+  local_switch **65.3%** — 사실상 동률.
+- **(c) clean 오탐 비용**: P16 clean 84.0% → all_switch 적용 시 88.0%(+4.0%p, P8이 원래
+  P16보다 clean 정확도가 높아서[89.2% vs 85.2%] 오탐이 나도 오히려 소폭 도움이 됐다),
+  local_switch 적용 시 84.7%(+0.7%p, 오차범위 내).
+
+**결과**: [`results/system_comparison/system_comparison_viz.png`](results/system_comparison/system_comparison_viz.png)
+
+## Cost comparison — 실제 파이프라인 비용 (`experiments/cost_comparison/`)
+
+기존 §10은 P8/P16을 각각 고립된 상태로(탐지 hook도 없이) 쟀고, local_switch는 비용을 잰 적이
+아예 없었다. 이 실험은 실제 파이프라인을 **기저 비용**(모든 이미지에 항상 발생 — P16 예측+탐지
++위치특정을 한 번의 forward로 계산, `defense.detector.predict_detect_localize`)과 **추가
+비용**(escalate된 이미지에서만 발생 — `apply_all_switch` vs `apply_local_switch`를 실제로 호출)
+으로 나눠 batch=1로 측정한다.
+
+**결과** (job 2292084, RTX 4090): 기저 비용 **3.73ms**(44.2 GFLOPs). 추가 비용은 all_switch
+**6.91ms**(156.3 GFLOPs) vs local_switch **2.58ms**(36.8 GFLOPs) — **local_switch가 2.7배
+저렴**. escalate 시 총 latency: all_switch 10.64ms(기저 대비 2.85배), local_switch 6.31ms
+(1.69배). system_comparison의 FPR/recall을 재사용한 E[cost(π)] 곡선도 모든 π에서 local_switch가
+낮다(π=0%: 4.65ms vs 4.08ms, π=50%: 6.70ms vs 4.84ms).
+
+주의: local_switch의 추가 비용은 P8의 patch_embed를 이미지 전체(784개 서브패치)에 대해 계산하고
+그중 4개만 쓰는 구현이라(§16/§17/§18과 동일한, 이미 검증된 메커니즘 코드 그대로 사용) 실제
+필요한 것보다 더 계산한다 — 여기 나온 2.58ms는 미래에 4개만 계산하도록 최적화하면 더 내려갈 수
+있는 **보수적 상한**이다.
+
+**결과**: [`results/cost_comparison/cost_comparison_viz.png`](results/cost_comparison/cost_comparison_viz.png)
+
+## Local Switch 강건성 검증 (`experiments/local_switch/`)
+
+복원율/시스템 정확도/비용은 위 system_comparison·cost_comparison이 대표 수치다. 이 섹션은
+**adaptive attacker에 대한 강건성**(all switch가 이미 §7/§14로 검증한 것과 동급) 검증만 다룬다.
+
 - **§17 joint attack stress test** (`joint_attack/`): 정렬 메커니즘(아핀 변환)이 §8이 경고한
   "정렬된 표현=joint attack에 더 취약" 함정에 빠지는지 확인하기 위해 §7과 동일한 방법론을
   적용. 나이브 전이 2.5%(1/40) → **joint attack 완전 무력화율 16.7%**(7/42, 95% CI
@@ -146,23 +204,12 @@ All switch(아래)가 거친 것과 **동일한 3단계 검증**을 거쳤다 �
 **한계 (원인 미규명)**: 탐지기 flag율이 §17/§18(4%)에서 §7/§14(20%)보다 뚜렷이 낮다. 원인은
 아직 분석하지 않았고, 열린 한계로 남겨둔다.
 
-## All Switch (`defense/all_switch/`) — 비교 기준선
+## All Switch 강건성 검증 (`experiments/all_switch/`)
 
 의심되면 이미지 전체를 P8로 다시 분류하는, local switch보다 훨씬 단순한 설계. 별도 정렬
 메커니즘 없이 완결된 두 번째 모델을 그대로 돌리기만 하면 되기 때문에, local switch를 만들기
-전에 먼저 이쪽을 완결적으로 검증해 "확실히 작동하는 upper bound" 겸 비교 기준선으로 삼았다.
+전에 먼저 이쪽을 완결적으로 검증해 비교 기준선으로 삼았다.
 
-- **§6 최종 검증** (`final_validation/`): 200장을 calibration 100/evaluation 100으로 분리,
-  임계값은 calibration에서만, 성능(recall/FPR/복원율)은 evaluation에서만 계산 → **FPR 5.0%,
-  탐지 recall 64.0%, 복원율 97.1%, 시스템 정확도 13.0%→64.0%(5배), clean 무손실**.
-- **§10 배포 비용** (`latency_memory/`): batch=1, warm-up 이후 기준 latency/memory/FLOPs 측정
-  → **P8이 latency 2.7배, FLOPs 4.5배 더 비쌈, 메모리는 거의 동일**.
-- **기대 비용 분석** (`expected_cost_analysis.py`, §6+§10 결합, 새 GPU 실험 아님): 실제 배포
-  시 P8은 탐지기가 flag한 이미지에서만 추가로 도니까, 시스템 전체의 기대 비용은 공격 이미지
-  비율 π에 따라 `E[cost(π)] = P16_cost + [(1-π)·FPR + π·recall] · P8_cost`. π=1%에서 P16
-  대비 **1.15배**, π=10%에서 **1.30배**, π=50%에서도 **1.95배**로, "매번 P16+P8 둘 다
-  돈다"는 naive 대안(항상 3.74배)보다 항상 쌈. (local switch는 패치 1개만 추가하므로 이
-  분석 자체가 필요 없을 만큼 저렴함 — 비교를 위해 all switch에만 적용.)
 - **§7 joint attack** (`joint_attack/`): P16+P8 손실을 합쳐 하나의 perturbation으로 동시
   최적화 → 나이브 전이(2.9%) 대비 joint attack은 **18.4%로 6배 위험**, 탐지기도 약해짐
   (joint attack의 20%만 flag).
@@ -173,10 +220,10 @@ All switch(아래)가 거친 것과 **동일한 3단계 검증**을 거쳤다 �
   (6/38, 95% CI [7.4%, 30.4%]), target_bound를 clean_max/calibrated_threshold 어느 쪽으로
   잡아도 동일하게 나옴.
 
-## 공유 인프라: 탐지 + 위치특정 (`defense/experiments/detection_localization/`)
+## 공유 인프라: 탐지 + 위치특정 (`experiments/detection_localization/`)
 
-Local switch/all switch 둘 다 공통으로 의존하는 raw-attention 기반 탐지기의 신뢰성을 검증하는
-섹션.
+두 방어가 공통으로 의존하는 raw-attention 기반 탐지기(`defense/detector.py`)의 신뢰성을
+검증하는 섹션.
 
 - **§1 탐지 가능성** (`signature/`): clean/LaVAN/PatchFool 각 30장, 층 1~12별 top-4 mass의
   AUROC 측정(rollout vs raw) → **L=12 raw attention이 최고, AUROC 0.879(clean 대비)~0.891
@@ -197,7 +244,7 @@ Local switch/all switch 둘 다 공통으로 의존하는 raw-attention 기반 �
   혼동하기 쉬워서 명시해둠). LaVAN을 잡으려면 별도의 보완 게이트(후보: 패치별 patch_embed
   activation norm outlier)가 필요하며, 아직 구현·검증 안 됨.
 
-## 보조 진단: Diversity diagnostic (`defense/experiments/diversity_diagnostic/`)
+## 보조 진단: Diversity diagnostic (`experiments/diversity_diagnostic/`)
 
 방어력이 정확히 어디서 오는지("토큰화 구조가 다름" 자체인지, 그냥 "두 모델이 다름"인지)를
 확인하고, local switch의 정렬 메커니즘이 밟을 수 있는 함정을 미리 특정해둔 §8 실험.
@@ -217,7 +264,10 @@ Local switch/all switch 둘 다 공통으로 의존하는 raw-attention 기반 �
 
 **메커니즘**: `src/dataset.py`의 `get_dataloader(seed, num_samples)`는 seed로 고정한
 `torch.Generator`로 전체 데이터셋을 한 번 섞은 뒤 앞에서 `num_samples`개를 자른다. 그래서
-**seed와 num_samples가 같으면 항상 같은 이미지가 같은 순서로 나온다**.
+**seed와 num_samples가 같으면 항상 같은 이미지가 같은 순서로 나온다** (num_samples가 다르면
+작은 쪽이 큰 쪽의 prefix가 되지만 calibration/eval 경계는 각 스크립트가 따로 정하므로,
+"같은 seed"만으로는 "같은 조건"이 보장되지 않는다 — 정확히 이 문제 때문에 system_comparison이
+calibration/eval 분리를 한 스크립트 안에서 한 번만 하도록 설계됐다, 위 참고).
 
 **감사 결과**:
 
@@ -226,8 +276,9 @@ Local switch/all switch 둘 다 공통으로 의존하는 raw-attention 기반 �
 | `ViT_tradeoff`의 정식 실험 1~7, area-matched #4/#5 포함 | `experiments/main.py`가 loader를 P×attack 루프 밖에서 1회만 생성, 재사용 | ✅ 고정 이미지, 페어링됨 |
 | §1 layer sweep, §4 attn_layer_idx 일반화 | 루프 밖에서 1회 호출 | ✅ 고정 이미지, 페어링됨 |
 | **§8 vs §7** — "52.3% vs 18.4%" 반전 결과의 근거 | §8는 seed=456, §7는 seed=123 — **서로 다른 50장으로 비교되고 있었음** | ❌ 발견 → 재실행으로 수정 |
+| **§6 vs §16** (제거됨) — "97.1% vs 89.8%" 복원율 비교의 근거 | 둘 다 seed=42지만 calibration/eval 경계가 달라 **부분적으로만 겹치는 이미지로 비교되고 있었음** | ❌ 발견 → system_comparison으로 대체 |
 
-**수정** — §8을 §7과 같은 이미지(seed=123)로 재실행(job 2147607):
+**§8 수정** — §7과 같은 이미지(seed=123)로 재실행(job 2147607):
 
 | 비교 (동일 50장, seed=123) | 둘 다 속음(완전 무력화) | 95% CI |
 |---|---|---|
@@ -236,7 +287,9 @@ Local switch/all switch 둘 다 공통으로 의존하는 raw-attention 기반 �
 
 **결론: 숫자는 바뀌었지만(52.3%→74.4%) 결론은 안 바뀌었고 오히려 더 뚜렷해졌다.** 두 신뢰구간
 겹침이 전혀 없어졌다. **논문/인용에는 페어링된 74.4%를 쓸 것.** 이후 §17/§18도 이 교훈을 따라
-항상 동일 seed=123으로 §7/§8과 직접 비교 가능하게 실행했다.
+항상 동일 seed=123으로 §7/§8과 직접 비교 가능하게 실행했고, system_comparison은 한발 더 나아가
+calibration/eval 분리 자체를 단일 스크립트 안에서 한 번만 하도록 만들어 이 종류의 실수가
+구조적으로 재발하지 않게 했다.
 
 ## 한계 (논문 Limitations에 반영할 것)
 
@@ -245,8 +298,11 @@ Local switch/all switch 둘 다 공통으로 의존하는 raw-attention 기반 �
 - **LaVAN 비탐지**: raw-attention 탐지기는 LaVAN을 원리적으로 못 잡는다(AUROC 0.36~0.57,
   모든 레이어에서 chance 수준 이하). 별도 보완 게이트가 필요하며 아직 미구현.
 - **표본 크기**: adaptive evasion 비교는 n=38~42 규모라 신뢰구간이 넓다(§17/§18 상한이 30%대).
-  "local switch와 all switch가 통계적으로 구분되지 않는다"는 주장이지 "local switch가 더
-  낫다"는 주장이 아니다.
+  system_comparison은 n=113(공격 성공 기준)/150(eval 기준)으로 더 크지만, "local switch와
+  all switch가 통계적으로 구분되지 않는다"는 주장이지 "local switch가 더 낫다"는 주장이 아니다.
+- **local_switch 비용의 보수적 상한**: cost_comparison의 local_switch 추가 비용(2.58ms)은
+  P8 patch_embed를 이미지 전체(784개)에 대해 계산하고 4개만 쓰는, 최적화되지 않은 구현
+  기준이다 — 실제로는 더 낮아질 여지가 있다.
 - **위협 모델 범위**: 검증한 공격은 LaVAN/PatchFool과 그 joint/adaptive 변형에 한정된 empirical
   보장이다. [PatchCleanser](https://www.usenix.org/conference/usenixsecurity22/presentation/xiang)
   같은 certified 방어와는 성격이 다르다는 점을 명시할 필요가 있다.
@@ -254,10 +310,12 @@ Local switch/all switch 둘 다 공통으로 의존하는 raw-attention 기반 �
 ## 로드맵 / 다음 단계 후보
 
 - local switch의 탐지기 flag율 4% vs all switch의 20% 차이 원인 분석 (우선순위 낮음, 의도적으로 보류 중)
+- local_switch의 P8 patch_embed 계산을 실제 필요한 4개 서브패치로만 제한 — cost_comparison의
+  2.58ms를 더 낮출 수 있는 확실한 최적화 (아직 구현 안 함)
 - LaVAN용 보완 탐지 게이트 (후보: patch_embed activation norm outlier)
 - 라우터를 L=6으로 당겼을 때의 recall/accuracy trade-off (L=6의 PatchFool vs Clean AUROC가
   0.639로 L=12의 0.879보다 낮아 recall 손실이 예상됨 — 아직 실행 안 함)
-- 탐지 recall(64%)을 올리는 방법 — 현재 시스템의 실질적 병목
+- 탐지 recall을 올리는 방법 — 현재 시스템의 실질적 병목
 - 기존 baseline([PatchCleanser](https://www.usenix.org/conference/usenixsecurity22/presentation/xiang)
   등)을 같은 P8/16/32 세팅에 직접 돌려 비교 — 코드 공개돼 있고 아키텍처 무관이라 이식 쉬움
 - (참고) [ViTGuard](https://arxiv.org/abs/2409.13828)는 attention+CLS token+MAE 재구성을
