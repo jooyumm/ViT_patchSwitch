@@ -1,0 +1,82 @@
+"""
+defense/detector.py — 두 방어 메커니즘(all_switch, local_switch)이 공통으로 쓰는 탐지·위치특정
+메커니즘의 단일 정본(canonical) 구현.
+
+배경
+----
+이 파일이 생기기 전까지는 이 로직(_attn_hook -> collect_layer_attn -> raw_at_layer ->
+top4_mass/argmax)이 defense/ 아래 13곳에 독립적으로 복사돼 있었다(감사 결과: 전부
+detect_layer=12, topk(4)로 완전히 동일, 분기 없음). 원본은
+experiments/detection_localization/localization/vitguard_localization.py였다.
+여기서는 그 로직을 한 곳으로 모으되, 각 실험 스크립트(§1~§18 등)는 이미 검증이 끝난
+자기 복사본을 그대로 유지한다(프로젝트의 폴더별 자기완결 관례 — 재검증 없이 그대로 둠).
+이 모듈은 **새로 작성하는 실험**(system_comparison, cost_comparison 등)이 참조할
+단일 소스다.
+
+메커니즘 (실배포 기준)
+----
+raw attention: 12번째 transformer block의 attention을 head 평균 낸 뒤, CLS->patch 행을
+정규화한 벡터. top-4 원소의 합("top4_mass")이 이미지 단위 이상치 점수이고, 그 argmax
+1개가 "의심 패치" 위치다(recall@1 96.7%, §2). 점수를 calibration에서 정한 임계값과
+비교해 escalate 여부를 결정한다(FPR/recall은 그 임계값의 함수 — 임계값 자체는 여기서
+만들지 않고, 매 실험이 자기 calibration 표본으로 정한다).
+"""
+import torch
+
+
+def _attn_hook(weights_list):
+    def hook(module, input, output):
+        with torch.no_grad():
+            x = input[0]
+            B, N, C = x.shape
+            qkv = module.qkv(x).reshape(
+                B, N, 3, module.num_heads, C // module.num_heads).permute(2, 0, 3, 1, 4)
+            q, k, _ = qkv.unbind(0)
+            attn = (q @ k.transpose(-2, -1)) * module.scale
+            attn = attn.softmax(dim=-1)
+            weights_list.append(attn.mean(dim=1).detach())
+    return hook
+
+
+def collect_layer_attn(model, images):
+    """model의 12개 block 전부에서 head-평균 attention을 뽑아 층별 리스트로 반환."""
+    weights = []
+    hooks = [blk.attn.register_forward_hook(_attn_hook(weights)) for blk in model.blocks]
+    with torch.no_grad():
+        model(images)
+    for h in hooks:
+        h.remove()
+    return weights
+
+
+def raw_at_layer(layer_weights, L):
+    """collect_layer_attn 결과에서 L번째 층의 CLS->patch 정규화 벡터 (B, N_patch)."""
+    attn = layer_weights[L - 1]
+    cls_to_patch = attn[:, 0, 1:]
+    return cls_to_patch / cls_to_patch.sum(dim=1, keepdim=True)
+
+
+def top4_mass(v):
+    """이상치 점수: 벡터의 top-4 원소 합 (B,)."""
+    return v.topk(4, dim=1).values.sum(dim=1)
+
+
+@torch.no_grad()
+def detection_score(model, images, detect_layer=12):
+    """images (B,3,H,W) -> 이상치 점수 (B,). 실배포 탐지기와 100% 동일한 경로(no_grad)."""
+    layer_weights = collect_layer_attn(model, images)
+    v = raw_at_layer(layer_weights, detect_layer)
+    return top4_mass(v)
+
+
+@torch.no_grad()
+def localize_top1(model, images, detect_layer=12):
+    """images (B,3,H,W) -> 의심 패치 flat index (B,). L=detect_layer raw attention argmax."""
+    layer_weights = collect_layer_attn(model, images)
+    v = raw_at_layer(layer_weights, detect_layer)
+    return v.argmax(dim=1)
+
+
+def should_escalate(score, threshold):
+    """점수 > 임계값이면 방어(all_switch/local_switch)를 발동할지 여부 (B,) bool 텐서."""
+    return score > threshold
