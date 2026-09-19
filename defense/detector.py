@@ -80,3 +80,21 @@ def localize_top1(model, images, detect_layer=12):
 def should_escalate(score, threshold):
     """점수 > 임계값이면 방어(all_switch/local_switch)를 발동할지 여부 (B,) bool 텐서."""
     return score > threshold
+
+
+@torch.no_grad()
+def predict_detect_localize(model, images, detect_layer=12):
+    """실배포에서 실제로 필요한 단일 forward: P16 예측(logits) + 탐지 점수 + 위치특정을
+    **한 번의 forward pass**로 함께 계산한다 (detection_score/localize_top1을 따로 부르면
+    같은 forward를 두 번 하게 됨 — cost_comparison처럼 실제 파이프라인 비용을 잴 때는 이
+    함수를 쓸 것). 다른 실험 스크립트들이 진작부터 관례로 써 온 "예측 1회 + collect_layer_attn
+    1회"(2 forward) 방식은 연구/측정 편의를 위한 것이었지, 실배포 비용의 정답은 아니다."""
+    weights = []
+    hooks = [blk.attn.register_forward_hook(_attn_hook(weights)) for blk in model.blocks]
+    logits = model(images)
+    for h in hooks:
+        h.remove()
+    v = raw_at_layer(weights, detect_layer)
+    score = top4_mass(v)
+    flag_idx = v.argmax(dim=1)
+    return logits, score, flag_idx
