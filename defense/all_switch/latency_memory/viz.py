@@ -3,7 +3,7 @@ latency_memory/viz.py — [탐색적, 롤백 가능] 10_bench_latency_memory.npz
 읽어서 그림만 다시 그린다 (GPU/재실험 불필요).
 
 사용법:
-  python viz.py  (defense/full_reclassification/latency_memory/ 안에서)
+  python viz.py  (defense/all_switch/latency_memory/ 안에서)
 """
 import os
 import numpy as np

@@ -6,10 +6,10 @@
 #SBATCH --qos=base_qos
 #SBATCH --gres=gpu:1
 #SBATCH --time=01:00:00
-#SBATCH --output=results/local_token_subdivision/joint_attack/17_local_swap_joint_attack_run_%j.txt
+#SBATCH --output=results/local_switch/joint_attack/17_local_swap_joint_attack_run_%j.txt
 
 cd /home/jooyumm/ViT_robust/ViT_patchSwitch
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-python defense/local_token_subdivision/joint_attack/local_swap_joint_attack_test.py \
+python defense/local_switch/joint_attack/local_swap_joint_attack_test.py \
   --num_samples 50 --seed 123 --num_calib 100 --calib_seed 42 --attn_layer_idx 4

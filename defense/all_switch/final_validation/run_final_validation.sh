@@ -6,9 +6,9 @@
 #SBATCH --qos=base_qos
 #SBATCH --gres=gpu:1
 #SBATCH --time=01:30:00
-#SBATCH --output=results/full_reclassification/final_validation/06_finalval_run_%j.txt
+#SBATCH --output=results/all_switch/final_validation/06_finalval_run_%j.txt
 
 cd /home/jooyumm/ViT_robust/ViT_patchSwitch
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-python defense/full_reclassification/final_validation/vitguard_final_validation.py --seed 42 --num_samples 200
+python defense/all_switch/final_validation/vitguard_final_validation.py --seed 42 --num_samples 200

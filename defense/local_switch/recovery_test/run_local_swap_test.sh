@@ -6,10 +6,10 @@
 #SBATCH --qos=base_qos
 #SBATCH --gres=gpu:1
 #SBATCH --time=02:00:00
-#SBATCH --output=results/local_token_subdivision/recovery_test/16_local_swap_l12_run_%j.txt
+#SBATCH --output=results/local_switch/recovery_test/16_local_swap_l12_run_%j.txt
 
 cd /home/jooyumm/ViT_robust/ViT_patchSwitch
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-python defense/local_token_subdivision/recovery_test/local_swap_test.py \
+python defense/local_switch/recovery_test/local_swap_test.py \
   --num_calib 100 --num_eval 150 --seed 42 --attn_layer_idx 4 --chunk 20

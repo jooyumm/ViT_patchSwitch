@@ -4,7 +4,7 @@
 #SBATCH --qos=base_qos
 #SBATCH --gres=gpu:1
 #SBATCH --time=00:20:00
-#SBATCH --output=results/full_reclassification/latency_memory/10_bench_run_%j.txt
+#SBATCH --output=results/all_switch/latency_memory/10_bench_run_%j.txt
 cd /home/jooyumm/ViT_robust/ViT_patchSwitch
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-python defense/full_reclassification/latency_memory/bench_latency_memory.py --n_warmup 20 --n_iters 100
+python defense/all_switch/latency_memory/bench_latency_memory.py --n_warmup 20 --n_iters 100

@@ -1,6 +1,6 @@
-# §16+§17+§18 통합 스토리: Local Token Subdivision 검증
+# §16+§17+§18 통합 스토리: Local Switch 검증
 
-이 문서는 `defense/local_token_subdivision/` 세 실험(recovery_test/joint_attack/adaptive_evasion_full)의
+이 문서는 `defense/local_switch/` 세 실험(recovery_test/joint_attack/adaptive_evasion_full)의
 결과를 하나의 이야기로 정리한 것이다. PPT와 논문(Abstract / 3.2 / 7.9 / 7.10 / Limitations / Conclusion)에
 바로 반영할 수 있도록, 섹션 맨 아래에 섹션별 붙여넣기용 문구를 따로 정리했다.
 
@@ -11,11 +11,12 @@ clean_max 기준 11.9%는 참고 수치로만 언급한다. 이유는 아래 §3
 
 ## 1. 배경 및 동기
 
-`full_reclassification`(전체 재분류) 방어는 탐지되면 이미지 전체를 P8로 다시 분류한다 — 안전하지만
-비용이 크다(latency 2.7x / FLOPs 4.5x, §10). 자연스러운 다음 질문은: **탐지된 패치 1개만 P8 서브패치로
-국소 교체하면 안 되나?** 나머지 195개 토큰은 P16 그대로 두고, 문제 패치만 4개의 P8 서브패치로 세분화해
-시퀀스를 196→200 토큰으로 늘리는 방식이다(`local_token_subdivision`). 성공하면 비용이 사실상 0에
-가까워진다.
+이 프로젝트의 목표는 처음부터 **local switch**(탐지된 패치 1개만 국소적으로 P8 강건성으로
+전환)였다. 나머지 195개 토큰은 P16 그대로 두고, 문제 패치만 4개의 P8 서브패치로 세분화해
+시퀀스를 196→200 토큰으로 늘리는 방식이다(`local_switch`). `all_switch`(탐지되면 이미지 전체를
+P8로 다시 분류하는 설계, §10 기준 latency 2.7x / FLOPs 4.5x)는 그 자체가 목표가 아니라, local
+switch가 얼마나 저렴하면서도 동급의 강건성을 내는지 보여줄 **비교 기준선**으로 먼저 완결적으로
+검증해뒀다.
 
 이 아이디어에는 구조적으로 걱정되는 지점이 하나 있었다: P8 서브패치 임베딩을 P16 좌표계로 옮기려면
 어떤 형태로든 "정렬(alignment)"이 필요한데, §8 diversity diagnostic에서 이미 **정렬된 표현끼리는

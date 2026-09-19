@@ -7,9 +7,9 @@
 #SBATCH --gres=gpu:1
 #SBATCH --time=02:00:00
 #SBATCH --exclude=cs-gpu-01
-#SBATCH --output=results/full_reclassification/adaptive_evasion_full/14_evasivejoint_run_%j.txt
+#SBATCH --output=results/all_switch/adaptive_evasion_full/14_evasivejoint_run_%j.txt
 
 cd /home/jooyumm/ViT_robust/ViT_patchSwitch
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-python defense/full_reclassification/adaptive_evasion_full/vitguard_adaptive_evasion_full_test.py --seed 123 --num_samples 50 --chunk 20 --iters 250
+python defense/all_switch/adaptive_evasion_full/vitguard_adaptive_evasion_full_test.py --seed 123 --num_samples 50 --chunk 20 --iters 250

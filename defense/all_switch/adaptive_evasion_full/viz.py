@@ -5,10 +5,10 @@ adaptive_evasion_full/viz.py — [탐색적, 롤백 가능] 14_adaptive_evasion_
 §7(회피 없는 joint attack) 참고값은 이 폴더가 자기 완결적이도록 07_joint_attack의 확정된
 결과를 상수로 직접 박아넣었다(vitguard_adaptive_evasion_full_test.py 자신도 PREV_FOOL_BOTH
 등으로 이렇게 참조하던 관례를 그대로 따름). 원본 재확인:
-  results/full_reclassification/joint_attack/07_joint_attack_test_n50.npz
+  results/all_switch/joint_attack/07_joint_attack_test_n50.npz
 
 사용법:
-  python viz.py  (defense/full_reclassification/adaptive_evasion_full/ 안에서)
+  python viz.py  (defense/all_switch/adaptive_evasion_full/ 안에서)
 """
 import os
 import numpy as np

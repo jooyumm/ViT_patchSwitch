@@ -3,7 +3,7 @@ joint_attack/viz.py — [탐색적, 롤백 가능] 07_joint_attack_test_n50.npz�
 읽어서 그림만 다시 그린다 (GPU/재실험 불필요).
 
 사용법:
-  python viz.py  (defense/full_reclassification/joint_attack/ 안에서)
+  python viz.py  (defense/all_switch/joint_attack/ 안에서)
 """
 import os
 import numpy as np

@@ -6,9 +6,9 @@
 #SBATCH --qos=base_qos
 #SBATCH --gres=gpu:1
 #SBATCH --time=01:00:00
-#SBATCH --output=results/full_reclassification/joint_attack/07_jointattack_run_%j.txt
+#SBATCH --output=results/all_switch/joint_attack/07_jointattack_run_%j.txt
 
 cd /home/jooyumm/ViT_robust/ViT_patchSwitch
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-python defense/full_reclassification/joint_attack/vitguard_joint_attack_test.py --seed 123 --num_samples 50 --chunk 20
+python defense/all_switch/joint_attack/vitguard_joint_attack_test.py --seed 123 --num_samples 50 --chunk 20

@@ -1,9 +1,9 @@
 # ViT_patchSwitch — ViT 적응형 방어(P16→P8 폴백) 프로젝트
 
-**"P16으로 기본 추론하다가, 공격이 의심되는 이미지는 P8로 전환해 방어하는 적응형 ViT 방어"**를
-설계·검증하는 독립 프로젝트다. 원래 [`ViT_tradeoff/`](../ViT_tradeoff/)(패치 크기 vs 강건성
-7개 정식 실험 — PGD/LaVAN/PatchFool × P8/P16/P32)에서 나온 발견("PatchFool에 대해 P8이 P16보다
-압도적으로 강건함")을 실제 방어로 발전시키기 위해 2026-09-15에 분리했다.
+**"P16으로 기본 추론하다가, 공격이 의심되는 패치만 국소적으로 P8 강건성으로 전환하는 적응형
+ViT 방어(local switch)"**를 설계·검증하는 독립 프로젝트다. 원래 [`ViT_tradeoff/`](../ViT_tradeoff/)
+(패치 크기 vs 강건성 7개 정식 실험 — PGD/LaVAN/PatchFool × P8/P16/P32)에서 나온 발견("PatchFool에
+대해 P8이 P16보다 압도적으로 강건함")을 실제 방어로 발전시키기 위해 2026-09-15에 분리했다.
 
 **범위 — ViT_tradeoff와 다른 점**: 이 프로젝트는 방어 메커니즘 자체(토큰화 격자 불일치)에
 집중하므로 **PGD는 제외, patch size는 P8/P16만, 공격은 LaVAN·PatchFool만** 다룬다(P32는
@@ -12,35 +12,43 @@
 — timm 체크포인트 이름까지 동일), 이 프로젝트 안에 **새로 복사된 파일**로 둬서 ViT_tradeoff에
 전혀 의존하지 않는다.
 
-## 두 가지 방어 메커니즘
+## 목표: Local Switch — 왜 국소 전환인가
 
-탐지가 공격을 의심하면, P16 파이프라인을 어떻게 P8 강건성으로 전환할지에 대한 **두 가지 설계를
-같은 세 단계 검증 프로토콜로 나란히 비교**한다:
+이 프로젝트의 목표는 처음부터 **국소 전환(local switch)**이었다: 탐지기가 공격을 의심하면
+이미지 전체가 아니라 **그 패치 1개만** 4개의 P8 서브패치로 국소 교체하고, 나머지 195개 토큰과
+P16의 12개 transformer block은 전혀 건드리지 않고 그대로 재사용한다. 이미지 전체를 P8로 다시
+돌리는 "전체 전환(all switch)"은 그 자체가 목표가 아니라, **local switch가 얼마나 저렴하면서도
+동급의 강건성을 내는지 보여줄 비교 기준선**으로 검증했다. all switch는 훨씬 단순한 설계라
+(별도 모델을 통째로 다시 돌릴 뿐, 두 표현을 이어붙일 정렬 메커니즘이 필요 없음) 먼저 완결적으로
+검증해 "naive하지만 확실히 작동하는 상한선" 역할을 하도록 했고, 그다음 local switch가 같은
+3단계 검증(복원율 → naive joint attack → 완전판 adaptive evasion)을 거쳐 이 기준선과 통계적으로
+구분되지 않는 강건성을 낸다는 것을 보였다.
 
-| | **A. 전체 재분류** (`defense/full_reclassification/`) | **B. 국소 토큰 세분화** (`defense/local_token_subdivision/`) |
+| | **Local Switch** (`defense/local_switch/`) — 목표 | **All Switch** (`defense/all_switch/`) — 비교 기준선 |
 |---|---|---|
-| 전환 방식 | 의심되면 이미지 **전체**를 P8로 다시 분류 | 의심되는 **패치 1개만** 4개의 P8 서브패치로 국소 교체 (196→200토큰), 나머지 195토큰·12개 block은 P16 그대로 재사용 |
-| 비용 | latency 2.7배, FLOPs 4.5배 (P8 전체 재실행) | 사실상 추가 비용 없음 (패치 1개만 추가) |
-| 정렬 메커니즘 | 없음 (완전히 별도 모델을 그대로 돌림) | closed-form 최소제곱 아핀 변환(768×768+bias)으로 patch_embed 레벨에서 P8 서브패치를 P16 좌표계에 투영 |
+| 전환 방식 | 의심되는 **패치 1개만** 4개의 P8 서브패치로 국소 교체 (196→200토큰), 나머지 195토큰·12개 block은 P16 그대로 재사용 | 의심되면 이미지 **전체**를 P8로 다시 분류 |
+| 비용 | 사실상 추가 비용 없음 (패치 1개만 추가) | latency 2.7배, FLOPs 4.5배 (P8 전체 재실행) |
+| 정렬 메커니즘 | closed-form 최소제곱 아핀 변환(768×768+bias)으로 patch_embed 레벨에서 P8 서브패치를 P16 좌표계에 투영 | 없음 (완전히 별도 모델을 그대로 돌림) |
 
 두 메커니즘 모두 동일한 3단계 검증을 거친다: **(1) 복원율 → (2) naive joint attack →
-(3) 탐지 회피까지 포함한 완전판 adaptive evasion**. B는 A보다 훨씬 저렴하면서도 이 세 단계
-전부에서 A와 통계적으로 구분되지 않는 결과를 보였다 — 상세 서사와 논문 반영용 문구는
+(3) 탐지 회피까지 포함한 완전판 adaptive evasion**. Local switch는 all switch보다 훨씬 저렴하면서도
+이 세 단계 전부에서 통계적으로 구분되지 않는 결과를 보였다 — 상세 서사와 논문 반영용 문구는
 [`NARRATIVE_16_17_18.md`](NARRATIVE_16_17_18.md) 참고.
 
 ## 핵심 성능 요약
 
-| 지표 | A. 전체 재분류 | B. 국소 토큰 세분화 |
+| 지표 | Local Switch (목표) | All Switch (비교 기준선) |
 |---|---|---|
-| 복원율 | **97.1%** (n=200, calibration/eval 분리) | **89.8%** (97/108, n=150 eval, 95% CI [82.7%, 94.2%]) |
-| clean 정확도 손실 | 없음 | ~0% (오차범위 내) |
-| 시스템 정확도 (naive attacker 기준) | 13.0%→64.0% (5배) | — (A와 같은 탐지기 재사용, §6 수치 그대로 적용됨) |
-| naive joint attack 완전 무력화 | 18.4% (7/38, [9.2%, 33.4%]) | 16.7% (7/42, [8.3%, 30.6%]) |
-| **완전판 adaptive evasion worst-case** | **15.8%** (6/38, [7.4%, 30.4%]) | **21.4%** (9/42, [11.7%, 35.9%], calibrated_threshold 기준; clean_max 기준 참고치 11.9%) |
-| 배포 비용 | latency 2.7배 / FLOPs 4.5배; 기대비용 π=10%에서 1.30배 | 사실상 무시 가능 |
+| 복원율 | **89.8%** (97/108, n=150 eval, 95% CI [82.7%, 94.2%]) | **97.1%** (n=200, calibration/eval 분리) |
+| clean 정확도 손실 | ~0% (오차범위 내) | 없음 |
+| 시스템 정확도 (naive attacker 기준) | — (동일 탐지기 재사용, §6 수치 그대로 적용됨) | 13.0%→64.0% (5배) |
+| naive joint attack 완전 무력화 | 16.7% (7/42, [8.3%, 30.6%]) | 18.4% (7/38, [9.2%, 33.4%]) |
+| **완전판 adaptive evasion worst-case** | **21.4%** (9/42, [11.7%, 35.9%], calibrated_threshold 기준; clean_max 기준 참고치 11.9%) | **15.8%** (6/38, [7.4%, 30.4%]) |
+| 배포 비용 | 사실상 무시 가능 | latency 2.7배 / FLOPs 4.5배; 기대비용 π=10%에서 1.30배 |
 
-모든 adaptive evasion worst-case 신뢰구간이 서로 겹친다 — **국소 세분화가 전체 재분류보다
-통계적으로 더 취약하다는 근거는 없다.** 두 메커니즘이 공유하는 탐지·위치특정 인프라(raw
+모든 adaptive evasion worst-case 신뢰구간이 서로 겹친다 — **local switch가 all switch보다
+통계적으로 더 취약하다는 근거는 없다.** 즉 local switch는 all switch 대비 배포 비용을 거의
+없애면서도 동급의 최악-경우 강건성을 낸다. 두 메커니즘이 공유하는 탐지·위치특정 인프라(raw
 attention L=12) 성능: AUROC 0.879(clean 대비)~0.891(LaVAN 대비), 위치특정 recall@1 96.7%.
 
 ## 디렉토리 구조
@@ -53,16 +61,16 @@ ViT_patchSwitch/
     attacks/{lavan.py, patch_fool.py}  원본과 동일 (pgd.py 없음 — 범위 밖)
 
   defense/                          실험 코드 (.py, .sh) — 결과물 없음
-    full_reclassification/            A. 전체 재분류
+    local_switch/                     목표: 국소 전환
+      recovery_test/                    §16 국소 교체 복원율
+      joint_attack/                     §17 joint attack stress test (§8 정렬 트랩 회피 검증)
+      adaptive_evasion_full/            §18 완전판 adaptive evasion (all switch와 동급 검증)
+    all_switch/                       비교 기준선: 전체 전환
       final_validation/                 §6  최종 시스템 검증 (FPR/recall/복원율)
       latency_memory/                   §10 배포 비용 (latency/FLOPs/memory)
       expected_cost_analysis.py         §6+§10 결합 기대비용(π) 분석
       joint_attack/                     §7  naive joint attack
       adaptive_evasion_full/            §14 완전판 adaptive evasion (탐지 회피 제약 포함)
-    local_token_subdivision/          B. 국소 토큰 세분화
-      recovery_test/                    §16 국소 교체 복원율
-      joint_attack/                     §17 joint attack stress test (§8 정렬 트랩 회피 검증)
-      adaptive_evasion_full/            §18 완전판 adaptive evasion (A와 동급 검증)
     experiments/                      두 메커니즘이 공유하는 인프라 + 보조 진단
       detection_localization/
         signature/                      §1  탐지 시그니처 + 레이어 스윕
@@ -75,25 +83,28 @@ ViT_patchSwitch/
                                       defense/와 완전히 같은 구조로 대응
 ```
 
+`local_switch/`, `all_switch/`, `experiments/`는 `defense/`(및 `results/`) 바로 아래의 서로
+독립된 형제 폴더다 — 한쪽이 다른 쪽 안에 중첩돼 있지 않고, 서로 파일을 공유하지도 않는다(각
+폴더가 필요한 공격/평가 로직을 자기 안에 복사해서 가짐 — 아래 참고).
+
 `defense/.../*.py`가 결과를 저장할 때는 자기 파일 경로에서 `/defense/`를 `/results/`로 바꾼
 경로에 쓴다(`HERE.replace('/defense/', '/results/', 1)`을 ROOT 탐색 기준으로 확장한 형태).
-그래서 폴더를 옮겨도 결과 경로가 항상 자동으로 따라온다. 여러 실험이 같은 공격 로직(예: joint
-attack)을 쓸 때는 모듈을 폴더마다 **복사**해서 넣었다 — 폴더 간 import를 없애서 폴더 하나만
-통째로 옮기거나 지워도 다른 실험이 안 깨지게 하기 위함이다. 유일한 예외는 몇몇 `viz.py`가
-다른 실험의 확정된 숫자를 (npz를 다시 열지 않고) 하드코딩된 상수로 인용하는 것
-(예: `local_token_subdivision/*/`의 스크립트들이 `full_reclassification/`의 §6/§7/§14
-수치를 참고용 상수로 가짐).
+그래서 폴더를 옮기거나 이름을 바꿔도 결과 경로가 항상 자동으로 따라온다. 여러 실험이 같은 공격
+로직(예: joint attack)을 쓸 때는 모듈을 폴더마다 **복사**해서 넣었다 — 폴더 간 import를 없애서
+폴더 하나만 통째로 옮기거나 지워도 다른 실험이 안 깨지게 하기 위함이다. 유일한 예외는 몇몇
+`viz.py`가 다른 실험의 확정된 숫자를 (npz를 다시 열지 않고) 하드코딩된 상수로 인용하는 것
+(예: `local_switch/*/`의 스크립트들이 `all_switch/`의 §6/§7/§14 수치를 참고용 상수로 가짐).
 
 **결과 파일 이름은 `NN_설명.확장자`** 형식을 유지한다(예: `01_signature_P16.png`,
 `16_local_swap_l12_viz.png`) — `NN`은 최초 설계 당시의 실험 번호이고, 이 문서와 코드 전체에서
 그 번호로 실험을 지칭한다.
 
-**2026-09-18 재구성**: 처음엔 순서대로 번호가 매겨진 하위 실험들의 나열로 구성됐던 프로젝트를,
-**"전체 재분류 vs 국소 토큰 세분화"라는 하나의 비교축을 중심으로** 재편했다. 이 비교가 프로젝트의
-핵심 기여이기 때문에 `defense/`/`results/` 바로 아래에는 이 두 메커니즘 폴더만 남기고, 둘이
-공유하는 탐지 인프라와 부가 진단 실험(§1~4, §8)은 `experiments/`로 모았다. 예전에 탐색만
-하고 종료된 방향(§5/§9/§11~13/§15의 부분 공유·전역 접합 실험)은 이미 삭제돼 있었고
-(git 히스토리에서 복구 가능), 이번 재편에서도 다시 살리지 않았다.
+**2026-09-19 재구성**: `full_reclassification/`→`all_switch/`, `local_token_subdivision/`→
+`local_switch/`로 폴더명을 바꿔 "local switch가 목표, all switch는 비교 기준선"이라는 서사를
+이름 자체에 반영했다(`git mv`로 진행해 히스토리 보존). 두 폴더는 여전히 `experiments/`와
+나란히 `defense/`/`results/` 바로 아래의 형제 폴더다. 이름을 참조하던 `.sh`(SBATCH 경로, python
+호출 경로)와 `viz.py` 독스트링의 경로 문구도 전부 새 이름으로 갱신하고, 각 스크립트를 직접
+실행해 결과가 올바른 `results/local_switch/`·`results/all_switch/` 경로에 저장되는지 확인했다.
 
 ## npz / 로그 정리 정책
 
@@ -106,38 +117,14 @@ attack)을 쓸 때는 모듈을 폴더마다 **복사**해서 넣었다 — 폴�
   — §8의 원래 seed=456 결과(52.3%)의 `.npz`가 나중에 seed=123 재실행 때 같은 파일명으로
   덮어써져서, 이 로그만 그 수치의 유일한 증거로 남음(아래 "샘플링 감사" 참고)
 
-## A. 전체 재분류 (`defense/full_reclassification/`)
+## Local Switch (`defense/local_switch/`) — 목표
 
-의심되면 이미지 전체를 P8로 다시 분류하는, 가장 단순하고 가장 강하게 검증된 설계.
+의심되는 P16 패치 1개만 4개의 P8 서브패치로 국소 교체한다. closed-form(최소제곱, 재학습 없음)
+아핀 변환으로 patch_embed 레벨에서 P8 서브패치를 P16 좌표계로 투영하고, 기존 L=12 top-1
+탐지기가 지목한 자리에 in-place로 끼워 넣는다. P16의 12개 transformer block은 전혀 수정하지
+않는다.
 
-- **§6 최종 검증** (`final_validation/`): 200장을 calibration 100/evaluation 100으로 분리,
-  임계값은 calibration에서만, 성능(recall/FPR/복원율)은 evaluation에서만 계산 → **FPR 5.0%,
-  탐지 recall 64.0%, 복원율 97.1%, 시스템 정확도 13.0%→64.0%(5배), clean 무손실**.
-- **§10 배포 비용** (`latency_memory/`): batch=1, warm-up 이후 기준 latency/memory/FLOPs 측정
-  → **P8이 latency 2.7배, FLOPs 4.5배 더 비쌈, 메모리는 거의 동일**.
-- **기대 비용 분석** (`expected_cost_analysis.py`, §6+§10 결합, 새 GPU 실험 아님): 실제 배포
-  시 P8은 탐지기가 flag한 이미지에서만 추가로 도니까, 시스템 전체의 기대 비용은 공격 이미지
-  비율 π에 따라 `E[cost(π)] = P16_cost + [(1-π)·FPR + π·recall] · P8_cost`. π=1%에서 P16
-  대비 **1.15배**, π=10%에서 **1.30배**, π=50%에서도 **1.95배**로, "매번 P16+P8 둘 다
-  돈다"는 naive 대안(항상 3.74배)보다 항상 쌈.
-- **§7 joint attack** (`joint_attack/`): P16+P8 손실을 합쳐 하나의 perturbation으로 동시
-  최적화 → 나이브 전이(2.9%) 대비 joint attack은 **18.4%로 6배 위험**, 탐지기도 약해짐
-  (joint attack의 20%만 flag).
-- **§14 완전판 adaptive evasion** (`adaptive_evasion_full/`): joint attack 손실에 "탐지
-  점수를 clean 범위 안으로 유지"하는 미분가능 페널티(STRAP-ViT류 설계)를 추가 → 회피 제약을
-  걸어도 결과가 거의 그대로(18.4%) — 두 모델을 동시에 속이는 목표 자체가 이미 탐지 회피를
-  "공짜로" 어느 정도 포함하고 있었다는 뜻. **최종 worst-case(무력화+미탐지) = 15.8%**
-  (6/38, 95% CI [7.4%, 30.4%]), target_bound를 clean_max/calibrated_threshold 어느 쪽으로
-  잡아도 동일하게 나옴.
-
-## B. 국소 토큰 세분화 (`defense/local_token_subdivision/`)
-
-의심되는 P16 패치 1개만 4개의 P8 서브패치로 국소 교체하는, 훨씬 저렴한 대안. closed-form
-(최소제곱, 재학습 없음) 아핀 변환으로 patch_embed 레벨에서 P8 서브패치를 P16 좌표계로 투영하고,
-기존 L=12 top-1 탐지기가 지목한 자리에 in-place로 끼워 넣는다. P16의 12개 transformer block은
-전혀 수정하지 않는다.
-
-전체 재분류가 거친 것과 **동일한 3단계 검증**을 거쳤다 — 상세 서사, 왜 이 세 단계가 각각
+All switch(아래)가 거친 것과 **동일한 3단계 검증**을 거쳤다 — 상세 서사, 왜 이 세 단계가 각각
 필요했는지, 논문/PPT용 문구는 [`NARRATIVE_16_17_18.md`](NARRATIVE_16_17_18.md)에 정리돼 있다.
 요약:
 
@@ -159,9 +146,37 @@ attack)을 쓸 때는 모듈을 폴더마다 **복사**해서 넣었다 — 폴�
 **한계 (원인 미규명)**: 탐지기 flag율이 §17/§18(4%)에서 §7/§14(20%)보다 뚜렷이 낮다. 원인은
 아직 분석하지 않았고, 열린 한계로 남겨둔다.
 
+## All Switch (`defense/all_switch/`) — 비교 기준선
+
+의심되면 이미지 전체를 P8로 다시 분류하는, local switch보다 훨씬 단순한 설계. 별도 정렬
+메커니즘 없이 완결된 두 번째 모델을 그대로 돌리기만 하면 되기 때문에, local switch를 만들기
+전에 먼저 이쪽을 완결적으로 검증해 "확실히 작동하는 upper bound" 겸 비교 기준선으로 삼았다.
+
+- **§6 최종 검증** (`final_validation/`): 200장을 calibration 100/evaluation 100으로 분리,
+  임계값은 calibration에서만, 성능(recall/FPR/복원율)은 evaluation에서만 계산 → **FPR 5.0%,
+  탐지 recall 64.0%, 복원율 97.1%, 시스템 정확도 13.0%→64.0%(5배), clean 무손실**.
+- **§10 배포 비용** (`latency_memory/`): batch=1, warm-up 이후 기준 latency/memory/FLOPs 측정
+  → **P8이 latency 2.7배, FLOPs 4.5배 더 비쌈, 메모리는 거의 동일**.
+- **기대 비용 분석** (`expected_cost_analysis.py`, §6+§10 결합, 새 GPU 실험 아님): 실제 배포
+  시 P8은 탐지기가 flag한 이미지에서만 추가로 도니까, 시스템 전체의 기대 비용은 공격 이미지
+  비율 π에 따라 `E[cost(π)] = P16_cost + [(1-π)·FPR + π·recall] · P8_cost`. π=1%에서 P16
+  대비 **1.15배**, π=10%에서 **1.30배**, π=50%에서도 **1.95배**로, "매번 P16+P8 둘 다
+  돈다"는 naive 대안(항상 3.74배)보다 항상 쌈. (local switch는 패치 1개만 추가하므로 이
+  분석 자체가 필요 없을 만큼 저렴함 — 비교를 위해 all switch에만 적용.)
+- **§7 joint attack** (`joint_attack/`): P16+P8 손실을 합쳐 하나의 perturbation으로 동시
+  최적화 → 나이브 전이(2.9%) 대비 joint attack은 **18.4%로 6배 위험**, 탐지기도 약해짐
+  (joint attack의 20%만 flag).
+- **§14 완전판 adaptive evasion** (`adaptive_evasion_full/`): joint attack 손실에 "탐지
+  점수를 clean 범위 안으로 유지"하는 미분가능 페널티(STRAP-ViT류 설계)를 추가 → 회피 제약을
+  걸어도 결과가 거의 그대로(18.4%) — 두 모델을 동시에 속이는 목표 자체가 이미 탐지 회피를
+  "공짜로" 어느 정도 포함하고 있었다는 뜻. **최종 worst-case(무력화+미탐지) = 15.8%**
+  (6/38, 95% CI [7.4%, 30.4%]), target_bound를 clean_max/calibrated_threshold 어느 쪽으로
+  잡아도 동일하게 나옴.
+
 ## 공유 인프라: 탐지 + 위치특정 (`defense/experiments/detection_localization/`)
 
-A/B 두 메커니즘이 공통으로 의존하는 raw-attention 기반 탐지기의 신뢰성을 검증하는 섹션.
+Local switch/all switch 둘 다 공통으로 의존하는 raw-attention 기반 탐지기의 신뢰성을 검증하는
+섹션.
 
 - **§1 탐지 가능성** (`signature/`): clean/LaVAN/PatchFool 각 30장, 층 1~12별 top-4 mass의
   AUROC 측정(rollout vs raw) → **L=12 raw attention이 최고, AUROC 0.879(clean 대비)~0.891
@@ -184,15 +199,15 @@ A/B 두 메커니즘이 공통으로 의존하는 raw-attention 기반 탐지기
 
 ## 보조 진단: Diversity diagnostic (`defense/experiments/diversity_diagnostic/`)
 
-A/B 두 메커니즘의 방어력이 정확히 어디서 오는지("토큰화 구조가 다름" 자체인지, 그냥 "두 모델이
-다름"인지)를 확인하고, B의 정렬 메커니즘이 밟을 수 있는 함정을 미리 특정해둔 §8 실험.
+방어력이 정확히 어디서 오는지("토큰화 구조가 다름" 자체인지, 그냥 "두 모델이 다름"인지)를
+확인하고, local switch의 정렬 메커니즘이 밟을 수 있는 함정을 미리 특정해둔 §8 실험.
 
 - **방법**: 같은 P16, 학습 레시피만 다른 두 번째 모델로 P16-A vs P16-B joint attack (§7과
   동일 이미지, seed=123으로 페어링 — 아래 "샘플링 감사" 참고).
 - **결과**: 같은 patch size·다른 학습 = **74.4%**(29/39, [58.9%, 85.4%]) 뚫림 vs 다른 patch
   size(§7) = 18.4% → **방어력의 핵심은 "다른 patch size"이지 "다른 모델"이 아니다.** 동시에
   이 결과는 "표현을 정렬하면 joint attack에 취약해질 수 있다"는 구체적인 경고이기도 하다 —
-  B(국소 토큰 세분화)가 도입하는 아핀 정렬이 바로 이 함정에 빠지는지를 검증한 것이 위 §17이다.
+  local switch가 도입하는 아핀 정렬이 바로 이 함정에 빠지는지를 검증한 것이 위 §17이다.
 
 ## 샘플링 감사
 
@@ -225,19 +240,20 @@ A/B 두 메커니즘의 방어력이 정확히 어디서 오는지("토큰화 �
 
 ## 한계 (논문 Limitations에 반영할 것)
 
-- **탐지기 flag율 불일치, 원인 미규명**: B(§17/§18)의 탐지기 flag율(4%)이 A(§7/§14, 20%)보다
-  뚜렷이 낮다. 원인은 분석하지 않았고, 열린 질문으로 남긴다.
+- **탐지기 flag율 불일치, 원인 미규명**: local switch(§17/§18)의 탐지기 flag율(4%)이 all
+  switch(§7/§14, 20%)보다 뚜렷이 낮다. 원인은 분석하지 않았고, 열린 질문으로 남긴다.
 - **LaVAN 비탐지**: raw-attention 탐지기는 LaVAN을 원리적으로 못 잡는다(AUROC 0.36~0.57,
   모든 레이어에서 chance 수준 이하). 별도 보완 게이트가 필요하며 아직 미구현.
 - **표본 크기**: adaptive evasion 비교는 n=38~42 규모라 신뢰구간이 넓다(§17/§18 상한이 30%대).
-  "A와 B가 통계적으로 구분되지 않는다"는 주장이지 "B가 더 낫다"는 주장이 아니다.
+  "local switch와 all switch가 통계적으로 구분되지 않는다"는 주장이지 "local switch가 더
+  낫다"는 주장이 아니다.
 - **위협 모델 범위**: 검증한 공격은 LaVAN/PatchFool과 그 joint/adaptive 변형에 한정된 empirical
   보장이다. [PatchCleanser](https://www.usenix.org/conference/usenixsecurity22/presentation/xiang)
   같은 certified 방어와는 성격이 다르다는 점을 명시할 필요가 있다.
 
 ## 로드맵 / 다음 단계 후보
 
-- B의 탐지기 flag율 4% vs A의 20% 차이 원인 분석 (우선순위 낮음, 의도적으로 보류 중)
+- local switch의 탐지기 flag율 4% vs all switch의 20% 차이 원인 분석 (우선순위 낮음, 의도적으로 보류 중)
 - LaVAN용 보완 탐지 게이트 (후보: patch_embed activation norm outlier)
 - 라우터를 L=6으로 당겼을 때의 recall/accuracy trade-off (L=6의 PatchFool vs Clean AUROC가
   0.639로 L=12의 0.879보다 낮아 recall 손실이 예상됨 — 아직 실행 안 함)
