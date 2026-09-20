@@ -62,34 +62,34 @@ def main():
     print(f"PatchFool system accuracy: P16 {p16_acc:.1f}% -> all_switch {all_acc:.1f}% / "
           f"local_switch {local_acc:.1f}%")
 
-    fig, axes = plt.subplots(1, 2, figsize=(13, 5.5))
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
-    # ---- (a) Detection AUROC: PatchFool vs LaVAN, chance-level reference ----
+    # ---- (a) Detection: is the attack caught at all? (AUROC, threshold-free) ----
     ax = axes[0]
-    cats = ['PatchFool\nvs Clean', 'LaVAN\nvs Clean']
+    cats = ['PatchFool', 'LaVAN']
     vals = [auroc_pf, auroc_lavan]
     colors = [GREEN, RED_FAIL]
     bars = ax.bar(cats, vals, color=colors, alpha=0.88, width=0.55)
     ax.axhline(0.5, color=RED_FAIL, linestyle='--', linewidth=1.5, zorder=0)
-    ax.text(1.48, 0.52, 'chance level (0.5)', color=RED_FAIL, fontsize=10, ha='right', style='italic')
+    ax.text(1.48, 0.53, 'chance', color=RED_FAIL, fontsize=9.5, ha='right', style='italic')
     for bar, v in zip(bars, vals):
         ax.text(bar.get_x() + bar.get_width() / 2, v + 0.03, f'{v:.3f}', ha='center',
-                fontweight='bold', fontsize=13, color=bar.get_facecolor())
-    ax.text(1, auroc_lavan - 0.06, 'below chance\nfundamentally\nundetectable', ha='center', va='top',
-            fontsize=9.5, color='white', fontweight='bold', fontstyle='italic')
+                fontweight='bold', fontsize=14, color=bar.get_facecolor())
+    ax.text(1, auroc_lavan / 2, 'undetectable', ha='center', va='center',
+            fontsize=10, color='white', fontweight='bold', rotation=90)
     ax.set_ylim(0, 1.08)
-    ax.set_ylabel('AUROC (L=12 raw attention)')
-    ax.set_title('(a) Detection performance by attack type', fontsize=13, fontweight='bold')
+    ax.set_ylabel('AUROC')
+    ax.set_title('(a) Detected?', fontsize=14, fontweight='bold')
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.grid(axis='y', alpha=0.25)
 
-    # ---- (b) Defense effect: PatchFool measured, LaVAN 'not measured / same as undefended' ----
+    # ---- (b) Given an attacked image: P16 alone vs. partial-P8 vs. full-P8 ----
     ax = axes[1]
     x_pf = np.array([0, 1, 2])
-    pf_vals = [p16_acc, all_acc, local_acc]
-    pf_colors = [GRAY, RED_ALL, BLUE_LOCAL]
-    pf_labels = ['Undefended\n(P16)', 'all_switch\napplied', 'local_switch\napplied']
+    pf_vals = [p16_acc, local_acc, all_acc]
+    pf_colors = [GRAY, BLUE_LOCAL, RED_ALL]
+    pf_labels = ['P16\n(no defense)', 'local_switch\n(partial P8)', 'all_switch\n(full P8)']
     bars = ax.bar(x_pf, pf_vals, color=pf_colors, alpha=0.88, width=0.6)
     for bar, v in zip(bars, pf_vals):
         ax.text(bar.get_x() + bar.get_width() / 2, v + 1.5, f'{v:.1f}%', ha='center',
@@ -98,23 +98,20 @@ def main():
     # LaVAN: hatched placeholder instead of a bar, no fabricated number
     x_lav = 3.3
     ax.bar([x_lav], [100], width=0.6, facecolor='none', edgecolor=RED_FAIL, hatch='//', linewidth=1.2)
-    ax.text(x_lav, 50, 'not measured\n(detection inactive\n-> defense never\ntriggers)',
-            ha='center', va='center', fontsize=9.5, color=RED_FAIL, fontweight='bold')
+    ax.text(x_lav, 50, 'N/A\n(not\ndetected)', ha='center', va='center',
+            fontsize=10, color=RED_FAIL, fontweight='bold')
 
     ax.set_xticks(list(x_pf) + [x_lav])
-    ax.set_xticklabels(pf_labels + ['LaVAN\n(defense inactive)'], fontsize=10)
+    ax.set_xticklabels(pf_labels + ['LaVAN'], fontsize=10)
     ax.set_ylim(0, 105)
     ax.set_ylabel('System accuracy (%)')
-    ax.set_title('(b) Defense effect: undefended vs. defended', fontsize=13, fontweight='bold')
+    ax.set_title('(b) Defense effect (PatchFool)', fontsize=14, fontweight='bold')
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.grid(axis='y', alpha=0.25)
     ax.axvline(2.65, color='#D1D5DB', linewidth=1, linestyle=':')
-    ax.text(1, 100, 'PatchFool (measured, system_comparison)', ha='center', fontsize=9, color=GRAY)
 
-    fig.suptitle('Detection & defense by attack type — PatchFool is caught and defended;\n'
-                  'LaVAN evades the shared detector entirely (same for all_switch and local_switch)',
-                  fontsize=12.5, fontweight='bold', y=1.04)
+    fig.suptitle('Detection & Defense by Attack Type', fontsize=15, fontweight='bold', y=1.02)
     fig.tight_layout()
 
     os.makedirs(RESULTS, exist_ok=True)
