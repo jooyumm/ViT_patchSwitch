@@ -53,14 +53,24 @@ def main():
         row = " ".join(f"{sub[i, j]:+.3f}" for j in range(n_cols))
         print(f"pos {i:<4} | {row}")
 
-    fig, ax = plt.subplots(figsize=(9, 6))
-    im = ax.imshow(pos8, aspect='auto', cmap='RdBu_r',
-                    vmin=-np.abs(pos8).max(), vmax=np.abs(pos8).max())
-    ax.set_xlabel('embedding dim (which of the 768 numbers, per position)')
-    ax.set_ylabel('P8 patch position (which of the 784 positions)')
-    ax.set_title('P8 pos_embed table, raw values\n(784 positions x 768 dims -- one row = one position\'s 768-dim vector)',
-                  fontsize=12)
-    fig.colorbar(im, ax=ax, shrink=0.85, label='value')
+    # 실제 숫자가 박힌 표 이미지 (히트맵 아님 -- 진짜 grid + 셀 안에 숫자)
+    fig, ax = plt.subplots(figsize=(11, 4.2))
+    ax.axis('off')
+    col_labels = [f'dim{j}' for j in range(n_cols)]
+    row_labels = [f'pos{i}' for i in range(n_rows)]
+    cell_text = [[f'{sub[i, j]:+.3f}' for j in range(n_cols)] for i in range(n_rows)]
+    tbl = ax.table(cellText=cell_text, rowLabels=row_labels, colLabels=col_labels,
+                    loc='center', cellLoc='center')
+    tbl.auto_set_font_size(False)
+    tbl.set_fontsize(9)
+    tbl.scale(1, 1.6)
+    for (r, c), cell in tbl.get_celld().items():
+        if r == 0 or c == -1:
+            cell.set_text_props(fontweight='bold')
+            cell.set_facecolor('#E5E7EB')
+    ax.set_title(f'model8.pos_embed -- actual values, patch position 0-{n_rows-1} x '
+                 f'embedding dim 0-{n_cols-1}\n(out of the full 784 x 768 table)',
+                 fontsize=12, fontweight='bold', pad=14)
     fig.tight_layout()
 
     os.makedirs(RESULTS, exist_ok=True)
