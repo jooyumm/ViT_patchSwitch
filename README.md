@@ -174,8 +174,21 @@ expected_cost_analysis.py는 제거했고(`git rm`, 히스토리에서 복구 �
 **결과** (job 2292084, RTX 4090): 기저 비용 **3.73ms**(44.2 GFLOPs). 추가 비용은 all_switch
 **6.91ms**(156.3 GFLOPs) vs local_switch **2.58ms**(36.8 GFLOPs) — **local_switch가 2.7배
 저렴**. escalate 시 총 latency: all_switch 10.64ms(기저 대비 2.85배), local_switch 6.31ms
-(1.69배). system_comparison의 FPR/recall을 재사용한 E[cost(π)] 곡선도 모든 π에서 local_switch가
-낮다(π=0%: 4.65ms vs 4.08ms, π=50%: 6.70ms vs 4.84ms).
+(1.69배).
+
+**E[cost(π)] — 배포 시나리오별 기대 비용** (system_comparison의 FPR=13.3%/recall=72.7%를
+재사용해 all_switch/local_switch 둘 다 계산, `E[cost(π)] = base + [(1-π)·FPR + π·recall]·extra`):
+
+| π (공격 이미지 비율) | all_switch | local_switch |
+|---|---|---|
+| 0% (오탐만 반영) | 4.65ms (1.25x 기저) | 4.08ms (1.09x 기저) |
+| 1% | 4.69ms (1.26x) | 4.09ms (1.10x) |
+| 10% | 5.07ms (1.36x) | 4.23ms (1.13x) |
+| 50% | 6.70ms (1.80x) | 4.84ms (1.30x) |
+
+모든 π에서 local_switch가 더 싸고, π가 커질수록(공격이 흔해질수록) 격차가 더 벌어진다 — π=50%
+에서 all_switch는 기저 대비 1.80배까지 늘어나지만 local_switch는 1.30배에 그친다("매번 P16+P8
+둘 다 돈다"는 naive 대안은 π와 무관하게 항상 10.64ms=2.85배).
 
 주의: local_switch의 추가 비용은 P8의 patch_embed를 이미지 전체(784개 서브패치)에 대해 계산하고
 그중 4개만 쓰는 구현이라(§16/§17/§18과 동일한, 이미 검증된 메커니즘 코드 그대로 사용) 실제
@@ -183,6 +196,35 @@ expected_cost_analysis.py는 제거했고(`git rm`, 히스토리에서 복구 �
 있는 **보수적 상한**이다.
 
 **결과**: [`results/cost_comparison/cost_comparison_viz.png`](results/cost_comparison/cost_comparison_viz.png)
+
+## 종료된 탐색: local_switch 위치 인코딩 개선 시도 (2026-09-20)
+
+**동기**: system_comparison에서 local_switch의 복원율(89.4%)이 all_switch(96.5%)보다 낮게
+나온 원인 중 하나로, `local_switch.py`의 4개 P8 서브패치가 "이게 4개 중 몇 번째 서브패치인지"를
+구분하는 명시적 위치 신호 없이 브릿지되고 있다는 점이 있었다(대화 기록 참고 — P8 서브패치는
+P8 자신의 native pos_embed만 쓰고, 어댑터는 4개 전부에 대해 하나의 공유 아핀 변환만 학습).
+APT(arXiv 2510.18091)의 `TokenizedZeroConvPatchAttn`이 여러 sub-patch를 합칠 때 위치 구분
+벡터를 쓰는 걸 참고해서, 재학습 없이 빠르게 검증 가능한 옵션부터 시도했다.
+
+**시도 (옵션 A, 재학습 없음)**: closed-form 아핀 브릿지는 그대로 두고, 4개 P8 서브패치
+임베딩에 브릿지 적용 전 고정된(학습 안 된) quadrant 구분 벡터(4개의 orthogonal 벡터)를 더함.
+system_comparison과 동일한 n=250/seed=42 split, 같은 공격 이미지에서 baseline과 직접 비교.
+
+**결과 (job 2293640/2293693)**: 벡터 크기를 calibration 평균 patch embedding 노름의 10%와
+100%(10배 차이) 두 스케일로 시험했는데, **둘 다 완전히 동일한 결과**(101/112=90.18%,
+delta=0.0000 — 단 하나의 예측도 안 바뀜)가 나왔다. 스케일을 10배 키워도 전혀 변화가 없다는
+건 "스케일이 작아서"가 아니라 **구조적으로 이 방식이 효과를 낼 수 없다**는 뜻이다:
+어댑터는 4개 서브패치 전부에 대해 **하나의 공유 아핀 변환**(W, b)만 쓰고, 피팅 타깃도 4개
+다 동일(부모 P16 패치 하나)하다 — 고정 벡터를 더해도 최소제곱 피팅이 그걸 그냥 상수 이동으로
+흡수해서 W, b를 재조정할 뿐, quadrant별로 다른 보정을 학습하도록 만들지 못한다. "공유된 하나의
+선형 변환"이라는 브릿지 설계 자체가 이런 종류의 위치 구분 신호를 살릴 수 없는 구조다.
+
+**결론**: 이 방향은 여기서 닫는다. 더 큰 변경(옵션 B — APT처럼 토큰 수를 안 늘리고 conv로
+집약한 걸 zero-init 선형층을 거쳐 원래 토큰에 더하는 방식)은 재학습이 필요해 스코프가 커지는
+데다, system_comparison·cost_comparison이 이미 이 개선 없이도 핵심 주장(시스템 정확도 동률,
+비용은 1/3)을 성립시키고 있어서 지금 밀어붙일 이유가 없다고 판단해 진행하지 않았다. 코드·양쪽
+스케일의 원자료는 `experiments/local_switch_posenc_ablation/`, `results/local_switch_posenc_ablation/`
+에 보존.
 
 ## Local Switch 강건성 검증 (`experiments/local_switch/`)
 
