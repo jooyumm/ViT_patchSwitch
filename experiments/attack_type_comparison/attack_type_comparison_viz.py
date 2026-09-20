@@ -9,7 +9,9 @@ LaVAN) 탐지 성능과 방어 효과를 한 그림에 비교한다. 새 GPU 실
       재계산한다(README에 이미 인용된 0.879/0.363을 하드코딩하지 않고 원자료에서 재현 — 재현
       확인 결과 소수점까지 일치함).
   - results/system_comparison/system_comparison_n250.npz
-      (PatchFool에 대한 무방어/all_switch/local_switch 시스템 정확도 — 8.7%/66.0%/65.3%)
+      (PatchFool에 대한 무방어/all_switch/local_switch 시스템 RA — 8.7%/66.0%/65.3%. RA(Robust
+      Accuracy) = adversarial 이미지 기준 정확도, ViT_tradeoff/src/metrics.py 정의와 동일한
+      용어 — CA(clean accuracy)가 아님, eval_labels 대비 전부 공격받은 이미지에서만 계산됨)
 
 LaVAN에 대해서는 이 프로젝트에서 "방어 적용 후" 정확도를 측정한 적이 없다(system_comparison은
 PatchFool만 공격으로 씀) — AUROC가 chance 이하(0.363)라 탐지기가 원리적으로 LaVAN을 못 잡고,
@@ -59,7 +61,7 @@ def main():
     p16_acc = float(sysd['p16_only_acc']) * 100
     all_acc = float(sysd['sys_acc_all']) * 100
     local_acc = float(sysd['sys_acc_local']) * 100
-    print(f"PatchFool system accuracy: P16 {p16_acc:.1f}% -> all_switch {all_acc:.1f}% / "
+    print(f"PatchFool system RA: P16 {p16_acc:.1f}% -> all_switch {all_acc:.1f}% / "
           f"local_switch {local_acc:.1f}%")
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
@@ -76,7 +78,7 @@ def main():
         ax.text(bar.get_x() + bar.get_width() / 2, v + 0.03, f'{v:.3f}', ha='center',
                 fontweight='bold', fontsize=14, color=bar.get_facecolor())
     ax.text(1, auroc_lavan / 2, 'undetectable', ha='center', va='center',
-            fontsize=10, color='white', fontweight='bold', rotation=90)
+            fontsize=10, color='white', fontweight='bold')
     ax.set_ylim(0, 1.08)
     ax.set_ylabel('AUROC')
     ax.set_title('(a) Detected?', fontsize=14, fontweight='bold')
@@ -84,7 +86,7 @@ def main():
     ax.spines['right'].set_visible(False)
     ax.grid(axis='y', alpha=0.25)
 
-    # ---- (b) Given an attacked image: P16 alone vs. partial-P8 vs. full-P8 ----
+    # ---- (b) Given an attacked image: P16 alone vs. partial-P8 vs. full-P8 (PatchFool only) ----
     ax = axes[1]
     x_pf = np.array([0, 1, 2])
     pf_vals = [p16_acc, local_acc, all_acc]
@@ -95,21 +97,14 @@ def main():
         ax.text(bar.get_x() + bar.get_width() / 2, v + 1.5, f'{v:.1f}%', ha='center',
                 fontweight='bold', fontsize=12, color=bar.get_facecolor())
 
-    # LaVAN: hatched placeholder instead of a bar, no fabricated number
-    x_lav = 3.3
-    ax.bar([x_lav], [100], width=0.6, facecolor='none', edgecolor=RED_FAIL, hatch='//', linewidth=1.2)
-    ax.text(x_lav, 50, 'N/A\n(not\ndetected)', ha='center', va='center',
-            fontsize=10, color=RED_FAIL, fontweight='bold')
-
-    ax.set_xticks(list(x_pf) + [x_lav])
-    ax.set_xticklabels(pf_labels + ['LaVAN'], fontsize=10)
+    ax.set_xticks(x_pf)
+    ax.set_xticklabels(pf_labels, fontsize=10)
     ax.set_ylim(0, 105)
-    ax.set_ylabel('System accuracy (%)')
+    ax.set_ylabel('System RA (%)')
     ax.set_title('(b) Defense effect (PatchFool)', fontsize=14, fontweight='bold')
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.grid(axis='y', alpha=0.25)
-    ax.axvline(2.65, color='#D1D5DB', linewidth=1, linestyle=':')
 
     fig.suptitle('Detection & Defense by Attack Type', fontsize=15, fontweight='bold', y=1.02)
     fig.tight_layout()
