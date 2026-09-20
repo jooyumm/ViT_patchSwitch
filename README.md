@@ -157,11 +157,28 @@ expected_cost_analysis.py는 제거했고(`git rm`, 히스토리에서 복구 �
   local_switch **89.4%**(101/113, [82.4%,93.8%]) — 신뢰구간이 겹친다.
 - **(b) 시스템 정확도** (eval 150개, 공격 상황): P16 단독 8.7% → all_switch **66.0%**,
   local_switch **65.3%** — 사실상 동률.
-- **(c) clean 오탐 비용**: P16 clean 84.0% → all_switch 적용 시 88.0%(+4.0%p, P8이 원래
-  P16보다 clean 정확도가 높아서[89.2% vs 85.2%] 오탐이 나도 오히려 소폭 도움이 됐다),
-  local_switch 적용 시 84.7%(+0.7%p, 오차범위 내).
+- **(c) clean 오탐 비용**: P16 clean 84.0%(126/150) → all_switch 적용 시 88.0%(132/150,
+  +6장/+4.0%p, P8이 원래 P16보다 clean 정확도가 높아서[89.2% vs 85.2%] 오탐이 나도 오히려
+  소폭 도움이 됐다), local_switch 적용 시 84.7%(127/150, +1장/+0.7%p). 세 조건의 Wilson
+  95% CI([77.3%,89.0%]/[81.8%,92.3%]/[78.0%,89.6%])가 전부 겹치고, local_switch는 150장
+  중 1장 차이라 사실상 노이즈 — **논문에 "세 번째 강점"으로 올리지 말고 "두 방법 모두 clean
+  비용 무시 가능한 수준"으로만 쓸 것.**
 
 **결과**: [`results/system_comparison/system_comparison_viz.png`](results/system_comparison/system_comparison_viz.png)
+
+**왜 FPR/recall이 §6의 5.0%/64.0%에서 13.3%/72.7%로 바뀌었나**: calibration 이미지 자체는
+§6과 완전히 동일(seed=42의 첫 100장)하지만, PatchFool 공격의 초기 랜덤 섭동
+(`src/attacks/patch_fool.py`의 `torch.randn_like`)이 배치를 몇 개씩 나눠(chunk) 도는지에
+따라 전역 RNG 스트림에서 다른 값을 뽑는다 — §6은 `CHUNK=50`(하드코딩), system_comparison은
+`--chunk 20`을 써서 같은 이미지에 다른 공격 초기화가 적용됐다. 직접 검증(2026-09-20, job
+2294207): 같은 100장에 chunk=50으로 다시 공격을 생성하면 §6의 원본 탐지 점수와 거의 완벽히
+일치(최대 차이 0.0026)하지만, chunk=20으로 생성하면 크게 갈린다(최대 차이 0.43, 적대적 이미지
+자체의 최대 픽셀 차이도 39) — **chunk 크기가 원인임을 직접 확정**했다. 즉 "다르게 구성된
+calibration 표본" 때문이 아니라 "같은 표본에 다른 공격 초기화가 적용돼 Youden's J가 다른
+지점(더 낮은 임계값 0.5116 vs 0.5567)을 골랐다"는 것 — 임계값이 낮아지며 FPR·recall이 같이
+오른 것과 정확히 들어맞는다. 두 값 다 유효한 calibration 결과이고, **system_comparison이
+all_switch·local_switch에 정확히 같은 임계값을 공유시키는 유일한 실험**이므로 논문에는
+13.3%/72.7%를 최종값으로 쓴다(§6은 이미 제거됨, 재현 불가).
 
 ## Cost comparison — 실제 파이프라인 비용 (`experiments/cost_comparison/`)
 
