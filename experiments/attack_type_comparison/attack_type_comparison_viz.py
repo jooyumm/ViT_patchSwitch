@@ -100,7 +100,7 @@ def main():
     ax.set_xticks(x_pf)
     ax.set_xticklabels(pf_labels, fontsize=10)
     ax.set_ylim(0, 105)
-    ax.set_ylabel('System RA (%)')
+    ax.set_ylabel('Robust Accuracy (RA, %)')
     ax.set_title('(b) Defense effect (PatchFool)', fontsize=14, fontweight='bold')
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
